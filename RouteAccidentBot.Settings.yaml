@@ -1,9 +1,12 @@
-﻿route:
-  origin: "Tijuana"
-  destination: "Hermosillo"
+route:
+  maps_link: ""
+  origin: ""
+  destination: ""
   travel_mode: "DRIVE"
+  road_preference: "free"
 
 monitor:
+  periodic_enabled: false
   interval_minutes: 45
   jam_delay_threshold_minutes: 13
   cooldown_minutes: 15

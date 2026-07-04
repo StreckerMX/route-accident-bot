@@ -43,6 +43,7 @@ class RoutesClient:
         destination: str,
         travel_mode: str = "DRIVE",
         compute_alternatives: bool = True,
+        avoid_tolls: bool = False,
     ) -> list[dict[str, Any]]:
         body = {
             "origin": {"address": origin},
@@ -51,6 +52,10 @@ class RoutesClient:
             "routingPreference": "TRAFFIC_AWARE_OPTIMAL",
             "extraComputations": ["TRAFFIC_ON_POLYLINE"],
             "computeAlternativeRoutes": compute_alternatives,
+            "routeModifiers": {
+                "avoidTolls": avoid_tolls,
+                "avoidFerries": False,
+            },
             "departureTime": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "languageCode": self.language_code,
             "units": "METRIC",

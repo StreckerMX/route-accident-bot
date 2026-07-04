@@ -1,4 +1,4 @@
-"""Servicio de monitoreo de rutas con Google Routes API."""
+"""Servicio de analisis de rutas con Google Routes API."""
 
 from __future__ import annotations
 
@@ -11,10 +11,10 @@ from pathlib import Path
 from typing import Any
 
 import requests
-import yaml
 from dotenv import load_dotenv
 
 from .alert_reporter import format_alert, format_alert_telegram, format_ok_check
+from .config_state import SETTINGS_FILE, load_config, save_config
 from .google_geocoder import Geocoder, LocationInfo
 from .google_routes_client import RoutesClient
 from .news_investigator import Investigator
@@ -22,17 +22,7 @@ from .route_advisor import compare_routes, recommend
 from .telegram_notifier import TelegramNotifier
 from .traffic_analyzer import analyze_route
 
-SETTINGS_FILE = "RouteAccidentBot.Settings.yaml"
-
-
-def load_config(config_path: Path) -> dict[str, Any]:
-    with config_path.open(encoding="utf-8") as f:
-        return yaml.safe_load(f) or {}
-
-
-def save_config(config_path: Path, config: dict[str, Any]) -> None:
-    with config_path.open("w", encoding="utf-8") as f:
-        yaml.safe_dump(config, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+__all__ = ["RouteMonitor", "load_config", "save_config", "SETTINGS_FILE"]
 
 
 class RouteMonitor:
@@ -55,6 +45,7 @@ class RouteMonitor:
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
         self._last_alert_at: float | None = None
+        self._periodic = False
 
         load_dotenv(base_dir / ".env", encoding="utf-8-sig")
         self._init_clients()
@@ -75,7 +66,7 @@ class RouteMonitor:
         self.origin = route_cfg.get("origin", "").strip()
         self.destination = route_cfg.get("destination", "").strip()
         if not self.origin or not self.destination:
-            raise ValueError("Configura origin y destination")
+            raise ValueError("Configura la ruta con un enlace de Google Maps")
 
         monitor_cfg = self.config.get("monitor", {})
         advisor_cfg = self.config.get("advisor", {})
@@ -86,6 +77,8 @@ class RouteMonitor:
         self.switch_threshold = advisor_cfg.get("recommend_switch_if_saves_minutes", 10)
         self.compute_alternatives = advisor_cfg.get("compute_alternatives", True)
         self.travel_mode = route_cfg.get("travel_mode", "DRIVE")
+        self.road_preference = route_cfg.get("road_preference", "free")
+        self.avoid_tolls = self.road_preference == "free"
 
         self.routes_client = RoutesClient(routes_api_key, language_code=f"{language}-MX")
         self.geocoder = Geocoder(geocoding_api_key, language=language)
@@ -116,14 +109,16 @@ class RouteMonitor:
             return f"{lat:.5f}, {lng:.5f}"
         return self.destination
 
+    def _road_label(self) -> str:
+        return "Libre (sin cuota)" if self.road_preference == "free" else "Cuota"
+
     def print_banner(self) -> None:
         self._log("=" * 50)
-        self._log("  Route Accident Bot - Monitoreo activo")
+        self._log("  Route Accident Bot - Analisis de ruta")
         self._log("=" * 50)
         self._log(f"  Origen:      {self.origin}")
         self._log(f"  Destino:     {self.destination}")
-        self._log(f"  Intervalo:   cada {self.interval} min")
-        self._log(f"  Umbral:      +{self.delay_threshold} min de retraso")
+        self._log(f"  Carretera:   {self._road_label()}")
         self._log(f"  Telegram:    {'activo' if self.telegram_enabled else 'desactivado'}")
         self._log("=" * 50)
         self._log("")
@@ -136,6 +131,7 @@ class RouteMonitor:
                 destination=self._format_destination(),
                 travel_mode=self.travel_mode,
                 compute_alternatives=self.compute_alternatives,
+                avoid_tolls=self.avoid_tolls,
             )
 
             if not routes:
@@ -241,19 +237,28 @@ class RouteMonitor:
         except Exception as exc:
             self._log(f"[{now.strftime('%H:%M:%S')}] Error: {exc}")
 
-    def _loop(self) -> None:
-        self.on_status("Monitoreando")
+    def _analysis_loop(self) -> None:
+        self.on_status("Analizando")
+        self.run_once()
+
+        if not self._periodic:
+            self.on_status("Detenido")
+            return
+
         while not self._stop_event.is_set():
-            self.run_once()
+            self.on_status("Esperando proxima revision")
             if self._stop_event.wait(self.interval * 60):
                 break
+            self.on_status("Analizando")
+            self.run_once()
+
         self.on_status("Detenido")
 
-    def start(self) -> None:
-        if self._thread and self._thread.is_alive():
-            return
+    def start_analysis(self, periodic: bool) -> None:
+        self.stop()
+        self._periodic = periodic
         self._stop_event.clear()
-        self._thread = threading.Thread(target=self._loop, daemon=True)
+        self._thread = threading.Thread(target=self._analysis_loop, daemon=True)
         self._thread.start()
 
     def stop(self) -> None:

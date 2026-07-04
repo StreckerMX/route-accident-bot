@@ -1,17 +1,12 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Elimina por completo Route Accident Bot y todos sus archivos.
-.DESCRIPTION
-    Borra el entorno virtual, configuracion, claves (.env) y el resto del proyecto.
-    La carpeta del repositorio se eliminara al finalizar este script.
-.EXAMPLE
-    .\Uninstall-RouteAccidentBot.ps1
+    Elimina Route Accident Bot y todos sus archivos.
 #>
 
 $ErrorActionPreference = "Stop"
-$ProjectRoot = $PSScriptRoot
 $ConfirmWord = "BORRAR"
+$LocalAppDir = Join-Path $env:LOCALAPPDATA "RouteAccidentBot"
 
 function Read-YesNo {
     param([string]$Prompt, [bool]$DefaultYes = $false)
@@ -21,59 +16,61 @@ function Read-YesNo {
     return $answer -in @("s", "si", "sí", "y", "yes")
 }
 
+function Remove-ProjectDir([string]$ProjectRoot) {
+    $scriptPath = $PSCommandPath
+    $failed = [System.Collections.Generic.List[string]]::new()
+
+    Get-ChildItem -LiteralPath $ProjectRoot -Force | ForEach-Object {
+        if ($_.FullName -eq $scriptPath) { return }
+        try {
+            Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction Stop
+        } catch {
+            $failed.Add($_.Name)
+        }
+    }
+
+    if ($failed.Count -gt 0) {
+        Write-Host "  No se pudo eliminar todo en $ProjectRoot" -ForegroundColor Yellow
+        return $false
+    }
+
+    if ($ProjectRoot -eq $PSScriptRoot) {
+        $deleteCmd = "timeout /t 2 /nobreak >nul & rmdir /s /q `"$ProjectRoot`""
+        Start-Process -FilePath "cmd.exe" -ArgumentList "/c $deleteCmd" -WindowStyle Hidden | Out-Null
+    } else {
+        Remove-Item -LiteralPath $ProjectRoot -Recurse -Force
+    }
+    return $true
+}
+
 Clear-Host
-Write-Host ""
-Write-Host "  Route Accident Bot - Desinstalacion completa" -ForegroundColor Red
-Write-Host ""
-Write-Host "  Se eliminara TODO en:" -ForegroundColor Yellow
-Write-Host "    $ProjectRoot" -ForegroundColor White
-Write-Host ""
-Write-Host "  Incluye: codigo, venv, .env, configuracion y datos locales." -ForegroundColor Yellow
-Write-Host "  Cierra la aplicacion antes de continuar." -ForegroundColor Yellow
-Write-Host ""
+Write-Host "`n  Route Accident Bot - Desinstalacion`n" -ForegroundColor Red
 
-if (-not (Read-YesNo "  Continuar con la desinstalacion" $false)) {
-    Write-Host "`n  Cancelado. No se borro nada.`n" -ForegroundColor Green
+$targets = @()
+if (Test-Path $LocalAppDir) { $targets += $LocalAppDir }
+if ((Test-Path $PSScriptRoot) -and ($PSScriptRoot -notin $targets)) { $targets += $PSScriptRoot }
+
+if ($targets.Count -eq 0) {
+    Write-Host "  No se encontro ninguna instalacion.`n" -ForegroundColor Yellow
     exit 0
 }
 
-$typed = (Read-Host "  Escribe $ConfirmWord para confirmar").Trim()
-if ($typed -ne $ConfirmWord) {
-    Write-Host "`n  Confirmacion incorrecta. No se borro nada.`n" -ForegroundColor Green
-    exit 0
-}
+Write-Host "  Se eliminara:" -ForegroundColor Yellow
+$targets | ForEach-Object { Write-Host "    $_" -ForegroundColor White }
+Write-Host "`n  Cierra la aplicacion antes de continuar." -ForegroundColor Yellow
 
-Write-Host "`n  Eliminando archivos..." -ForegroundColor Cyan
+if (-not (Read-YesNo "  Continuar" $false)) { exit 0 }
+if ((Read-Host "  Escribe $ConfirmWord para confirmar").Trim() -ne $ConfirmWord) { exit 0 }
 
-$scriptPath = $PSCommandPath
-$failed = [System.Collections.Generic.List[string]]::new()
-
-Get-ChildItem -LiteralPath $ProjectRoot -Force | ForEach-Object {
-    if ($_.FullName -eq $scriptPath) {
-        return
-    }
-    try {
-        Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction Stop
-        Write-Host "  Eliminado: $($_.Name)" -ForegroundColor DarkGray
-    } catch {
-        $failed.Add($_.Name)
-        Write-Host "  No se pudo eliminar: $($_.Name)" -ForegroundColor Yellow
+foreach ($dir in $targets) {
+    Write-Host "`n  Eliminando $dir ..." -ForegroundColor Cyan
+    if (Remove-ProjectDir $dir) {
+        Write-Host "  Listo." -ForegroundColor Green
     }
 }
 
-if ($failed.Count -gt 0) {
-    Write-Host ""
-    Write-Host "  Algunos elementos siguen en uso. Cierra Python/terminal y ejecuta de nuevo," -ForegroundColor Yellow
-    Write-Host "  o borra manualmente la carpeta:" -ForegroundColor Yellow
-    Write-Host "    $ProjectRoot`n" -ForegroundColor White
-    exit 1
-}
+$desktop = [Environment]::GetFolderPath("Desktop")
+$shortcut = Join-Path $desktop "Route Accident Bot.lnk"
+if (Test-Path $shortcut) { Remove-Item $shortcut -Force }
 
-Write-Host ""
-Write-Host "  Programando eliminacion de la carpeta del proyecto..." -ForegroundColor Cyan
-
-$deleteCmd = "timeout /t 2 /nobreak >nul & rmdir /s /q `"$ProjectRoot`""
-Start-Process -FilePath "cmd.exe" -ArgumentList "/c $deleteCmd" -WindowStyle Hidden | Out-Null
-
-Write-Host "  Desinstalacion completada. La carpeta desaparecera en unos segundos.`n" -ForegroundColor Green
-exit 0
+Write-Host "`n  Desinstalacion completada.`n" -ForegroundColor Green
