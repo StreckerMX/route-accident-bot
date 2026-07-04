@@ -6,14 +6,15 @@ import customtkinter as ctk
 
 from .alert_reporter import AlertResult, format_alert_popup_body
 from .news_investigator import NewsItem
+from .route_advisor import build_maps_point_url
 from .ui_helpers import APP_COLORS, open_url
 
 
 def show_traffic_alert_popup(parent: ctk.CTk, result: AlertResult) -> None:
     popup = ctk.CTkToplevel(parent)
     popup.title("Alerta de trafico")
-    popup.geometry("560x520")
-    popup.minsize(480, 420)
+    popup.geometry("560x560")
+    popup.minsize(480, 460)
     popup.transient(parent)
     popup.grab_set()
     popup.focus_set()
@@ -30,34 +31,44 @@ def show_traffic_alert_popup(parent: ctk.CTk, result: AlertResult) -> None:
     body.insert("1.0", format_alert_popup_body(result))
     body.configure(state="disabled")
 
-    buttons = ctk.CTkFrame(popup, fg_color="transparent")
-    buttons.pack(fill="x", padx=16, pady=(0, 16))
+    actions = ctk.CTkFrame(popup, fg_color="transparent")
+    actions.pack(fill="x", padx=16, pady=(0, 8))
+
+    if result.main_event:
+        delay_url = build_maps_point_url(result.main_event.lat, result.main_event.lng)
+        ctk.CTkButton(
+            actions,
+            text="Ver retraso en Maps",
+            fg_color="#9a6700",
+            hover_color="#7a5200",
+            command=lambda url=delay_url: open_url(url),
+        ).pack(side="left", fill="x", expand=True, padx=(0, 6))
 
     if result.news:
         ctk.CTkButton(
-            buttons,
+            actions,
             text=f"Ver noticias ({len(result.news)})",
             fg_color=APP_COLORS["accent"],
             hover_color=APP_COLORS["accent_hover"],
             command=lambda: show_news_popup(popup, result.news),
-        ).pack(side="left", fill="x", expand=True, padx=(0, 6))
+        ).pack(side="left", fill="x", expand=True, padx=6)
 
     if result.maps_url:
         ctk.CTkButton(
-            buttons,
+            actions,
             text=result.maps_label,
             fg_color=APP_COLORS["success_bg"],
             hover_color=APP_COLORS["success"],
             command=lambda url=result.maps_url: open_url(url),
-        ).pack(side="left", fill="x", expand=True, padx=6)
+        ).pack(side="left", fill="x", expand=True, padx=(6, 0))
 
     ctk.CTkButton(
-        buttons,
+        popup,
         text="Cerrar",
         fg_color="transparent",
         border_width=1,
         command=popup.destroy,
-    ).pack(side="left", fill="x", expand=True, padx=(6, 0))
+    ).pack(fill="x", padx=16, pady=(0, 16))
 
 
 def show_news_popup(parent: ctk.CTkBaseClass, news: list[NewsItem]) -> None:

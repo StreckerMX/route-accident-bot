@@ -36,6 +36,14 @@ def build_maps_url(origin: str, destination: str) -> str:
     )
 
 
+def build_maps_point_url(lat: float, lng: float, zoom: int = 17) -> str:
+    return (
+        "https://www.google.com/maps/search/?api=1"
+        f"&query={lat:.6f},{lng:.6f}"
+        f"&zoom={zoom}"
+    )
+
+
 def compare_routes(analyses: list[RouteAnalysis]) -> list[RouteComparison]:
     comparisons = []
     for analysis in analyses:
