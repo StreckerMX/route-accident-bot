@@ -43,21 +43,11 @@ El instalador solicitará:
 
 ## Uso
 
-**Interfaz gráfica (recomendado):**
-
-```powershell
-.\Start-RouteAccidentBotGui.ps1
-```
-
-Pega un enlace de Google Maps, pulsa **Analizar enlace** y luego **Iniciar monitoreo**.
-
-**Consola:**
-
 ```powershell
 .\Start-RouteAccidentBot.ps1
 ```
 
-Presiona `Ctrl+C` para detener el monitoreo.
+Se abre la interfaz gráfica. Pega un enlace de Google Maps, pulsa **Analizar enlace** y luego **Iniciar monitoreo**. Usa **Detener** para pausar el monitoreo.
 
 **Configuración por defecto:**
 - Revisión cada **45 minutos**
@@ -173,6 +163,8 @@ git clone https://github.com/StreckerMX/route-accident-bot.git; cd route-acciden
 ```powershell
 .\Start-RouteAccidentBot.ps1
 ```
+
+Opens the graphical interface. Paste a Google Maps route link, click **Analizar enlace**, then **Iniciar monitoreo**.
 
 **Defaults:** check every **45 minutes**, alert when delay exceeds **13 minutes**.
 

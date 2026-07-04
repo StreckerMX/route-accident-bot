@@ -249,20 +249,6 @@ class RouteMonitor:
                 break
         self.on_status("Detenido")
 
-    def run_blocking(self) -> None:
-        self._stop_event.clear()
-        self.print_banner()
-        self.on_status("Monitoreando")
-        try:
-            while not self._stop_event.is_set():
-                self.run_once()
-                if self._stop_event.wait(self.interval * 60):
-                    break
-        except KeyboardInterrupt:
-            self._log("\nMonitoreo detenido.")
-        finally:
-            self.on_status("Detenido")
-
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
             return

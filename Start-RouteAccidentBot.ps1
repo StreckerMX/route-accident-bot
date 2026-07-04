@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Inicia el monitor de trafico Route Accident Bot.
+    Inicia la interfaz grafica de Route Accident Bot.
 .EXAMPLE
     .\Start-RouteAccidentBot.ps1
 #>

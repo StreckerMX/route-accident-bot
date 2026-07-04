@@ -29,7 +29,7 @@ Write-Host "  Se eliminara TODO en:" -ForegroundColor Yellow
 Write-Host "    $ProjectRoot" -ForegroundColor White
 Write-Host ""
 Write-Host "  Incluye: codigo, venv, .env, configuracion y datos locales." -ForegroundColor Yellow
-Write-Host "  Cierra el bot (consola o interfaz grafica) antes de continuar." -ForegroundColor Yellow
+Write-Host "  Cierra la aplicacion antes de continuar." -ForegroundColor Yellow
 Write-Host ""
 
 if (-not (Read-YesNo "  Continuar con la desinstalacion" $false)) {
