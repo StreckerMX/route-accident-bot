@@ -32,6 +32,7 @@ class RouteMonitor:
         config: dict[str, Any],
         on_log: Callable[[str], None] | None = None,
         on_status: Callable[[str], None] | None = None,
+        on_maps_link: Callable[[str, str], None] | None = None,
         origin_coords: tuple[float, float] | None = None,
         destination_coords: tuple[float, float] | None = None,
     ):
@@ -39,6 +40,7 @@ class RouteMonitor:
         self.config = config
         self.on_log = on_log or print
         self.on_status = on_status or (lambda _: None)
+        self.on_maps_link = on_maps_link or (lambda _url, _label: None)
         self.origin_coords = origin_coords
         self.destination_coords = destination_coords
 
@@ -82,9 +84,11 @@ class RouteMonitor:
 
         self.routes_client = RoutesClient(routes_api_key, language_code=f"{language}-MX")
         self.geocoder = Geocoder(geocoding_api_key, language=language)
+        self.maps_link = route_cfg.get("maps_link", "").strip()
         self.investigator = Investigator(
             search_queries=investigation_cfg.get("search_queries", []),
             max_results=investigation_cfg.get("max_news_results", 5),
+            max_age_hours=float(investigation_cfg.get("max_news_age_hours", 2)),
         )
         self.telegram = TelegramNotifier(
             bot_token=os.getenv("TELEGRAM_BOT_TOKEN", ""),
@@ -96,6 +100,16 @@ class RouteMonitor:
 
     def _log(self, message: str) -> None:
         self.on_log(message)
+
+    def _notify_maps_link(self, recommendation: Any | None) -> None:
+        if recommendation and recommendation.action in ("CAMBIAR_RUTA", "CONSIDERAR_ALTERNATIVA"):
+            label = f"Abrir {recommendation.best_route_label} en Google Maps"
+            url = self.maps_link or recommendation.maps_url
+        else:
+            label = "Abrir ruta en Google Maps"
+            url = self.maps_link or (recommendation.maps_url if recommendation else "")
+        if url:
+            self.on_maps_link(url, label)
 
     def _format_origin(self) -> str:
         if self.origin_coords:
@@ -199,6 +213,7 @@ class RouteMonitor:
                             recommendation=recommendation,
                         )
                     )
+                    self._notify_maps_link(recommendation)
 
                     if self.telegram_enabled and self.notify_on_alert:
                         try:
@@ -224,6 +239,7 @@ class RouteMonitor:
             else:
                 ok_text = format_ok_check(now, primary)
                 self._log(ok_text)
+                self._notify_maps_link(None)
                 if self.telegram_enabled and self.notify_on_ok:
                     try:
                         self.telegram.send(ok_text, parse_mode=None)

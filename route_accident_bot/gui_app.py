@@ -11,6 +11,7 @@ from .config_state import SETTINGS_FILE, is_config_complete, load_config, save_c
 from .google_maps_link_parser import GoogleMapsLinkError, parse_google_maps_link, parse_location_label
 from .monitor_service import RouteMonitor
 from .setup_wizard import run_setup_wizard
+from .ui_helpers import open_url
 
 
 class RouteAccidentBotApp(ctk.CTk):
@@ -73,6 +74,10 @@ class RouteAccidentBotApp(ctk.CTk):
         self.status_label = ctk.CTkLabel(self, text="Estado: Detenido", anchor="w")
         self.status_label.pack(fill="x", padx=16, pady=(4, 8))
 
+        self.links_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.links_frame.pack(fill="x", padx=16, pady=(0, 8))
+        self._maps_link_button: ctk.CTkButton | None = None
+
         ctk.CTkLabel(self, text="Resultados", anchor="w").pack(fill="x", padx=16)
         self.log_box = ctk.CTkTextbox(self, wrap="word")
         self.log_box.pack(fill="both", expand=True, padx=16, pady=(4, 16))
@@ -100,6 +105,20 @@ class RouteAccidentBotApp(ctk.CTk):
 
     def _thread_safe_status(self, status: str) -> None:
         self.after(0, lambda: self.status_label.configure(text=f"Estado: {status}"))
+
+    def _thread_safe_maps_link(self, url: str, label: str) -> None:
+        self.after(0, lambda: self._show_maps_button(url, label))
+
+    def _show_maps_button(self, url: str, label: str) -> None:
+        if self._maps_link_button is not None:
+            self._maps_link_button.destroy()
+            self._maps_link_button = None
+        self._maps_link_button = ctk.CTkButton(
+            self.links_frame,
+            text=label,
+            command=lambda u=url: open_url(u),
+        )
+        self._maps_link_button.pack(fill="x")
 
     def _paste_link(self) -> None:
         try:
@@ -151,6 +170,7 @@ class RouteAccidentBotApp(ctk.CTk):
                 config=self.config,
                 on_log=self._thread_safe_log,
                 on_status=self._thread_safe_status,
+                on_maps_link=self._thread_safe_maps_link,
                 origin_coords=self.origin_coords,
                 destination_coords=self.destination_coords,
             )

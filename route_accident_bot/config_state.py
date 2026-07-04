@@ -28,6 +28,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "investigation": {
         "language": "es",
         "max_news_results": 5,
+        "max_news_age_hours": 2,
         "search_queries": [
             "accidente {road} {city}",
             "choque {road} {city} hoy",

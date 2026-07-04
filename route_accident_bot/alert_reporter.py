@@ -74,16 +74,17 @@ def format_alert(
             lines.append(f"  • {warning}")
 
     lines.append("")
-    lines.append("Investigación:")
+    lines.append("Investigacion (ultimas ~2 horas):")
     if news:
         for item in news:
             snippet = item.snippet[:160] + "..." if len(item.snippet) > 160 else item.snippet
-            lines.append(f"  • [{item.source}] {item.title}")
+            age = f" ({item.age_label})" if item.age_label else ""
+            lines.append(f"  • [{item.source}]{age} {item.title}")
             if snippet:
                 lines.append(f"    {snippet}")
     else:
         lines.append(
-            "  • No se encontraron reportes públicos recientes. El atasco puede deberse "
+            "  • No se encontraron noticias en las ultimas 2 horas. El atasco puede deberse "
             "a accidente no reportado, obra vial o alto volumen vehicular."
         )
 
@@ -102,7 +103,7 @@ def format_alert(
     lines.append(f"Motivo: {recommendation.reason}")
     if recommendation.minutes_saved > 0:
         lines.append(f"Ahorro potencial: ~{recommendation.minutes_saved} min")
-    lines.append(f"Mapa: {recommendation.maps_url}")
+    lines.append("Usa el boton de la ventana para abrir la ruta en Google Maps.")
     lines.append("═" * 50)
     lines.append("")
 
