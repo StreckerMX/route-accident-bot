@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
+import os
+import threading
 import tkinter as tk
 from pathlib import Path
 
 import customtkinter as ctk
+from dotenv import load_dotenv
 
 from .alert_popup import show_traffic_alert_popup
 from .alert_reporter import AlertResult
 from .config_state import SETTINGS_FILE, is_config_complete, load_config, save_config
-from .route_geometry import haversine_km
 from .google_maps_link_parser import GoogleMapsLinkError, parse_google_maps_link, parse_location_label
+from .google_routes_client import RoutesClient
 from .monitor_service import RouteMonitor
 from .setup_wizard import run_setup_wizard
 from .ui_helpers import (
@@ -28,6 +31,12 @@ from .ui_helpers import (
 )
 
 
+def _format_waypoint(coords: tuple[float, float] | None, label: str) -> str:
+    if coords:
+        return f"{coords[0]:.5f}, {coords[1]:.5f}"
+    return label
+
+
 class RouteAccidentBotApp(ctk.CTk):
     def __init__(self, base_dir: Path):
         super().__init__()
@@ -38,6 +47,9 @@ class RouteAccidentBotApp(ctk.CTk):
         self.origin_coords: tuple[float, float] | None = None
         self.destination_coords: tuple[float, float] | None = None
         self._is_running = False
+        self._preview_token = 0
+        self._route_origin_text = ""
+        self._route_destination_text = ""
 
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
@@ -62,11 +74,11 @@ class RouteAccidentBotApp(ctk.CTk):
         form.pack(fill="x", padx=20, pady=(0, 10))
 
         self.link_entry, self.link_hint = add_link_field_with_paste(form, on_change=self._on_link_changed)
-        self.origin_label, self.destination_label = build_route_card(form)
+        self.origin_label, self.destination_label, self.route_info_label = build_route_card(form)
 
         ctk.CTkLabel(form, text="Tipo de carretera", anchor="w").pack(anchor="w", padx=14, pady=(4, 0))
         self.road_var = tk.StringVar(value="free")
-        self.road_selector = build_road_selector(form, self.road_var)
+        self.road_selector = build_road_selector(form, self.road_var, on_change=self._schedule_route_preview)
 
         self.periodic_var = tk.BooleanVar(value=False)
         self.periodic_checkbox = ctk.CTkCheckBox(
@@ -141,6 +153,7 @@ class RouteAccidentBotApp(ctk.CTk):
             self.destination_label,
             route_cfg.get("origin", ""),
             route_cfg.get("destination", ""),
+            route_info_label=self.route_info_label,
         )
         if route_cfg.get("maps_link"):
             self._on_link_changed(route_cfg.get("maps_link", ""))
@@ -153,34 +166,168 @@ class RouteAccidentBotApp(ctk.CTk):
         self.road_selector.configure(state=state)
         self.periodic_checkbox.configure(state=state)
 
+    def _schedule_route_preview(self) -> None:
+        if not self.origin_coords or not self.destination_coords:
+            if self._route_origin_text and self._route_destination_text:
+                self._schedule_route_preview_from_labels()
+            return
+
+        self._preview_token += 1
+        token = self._preview_token
+        self.link_hint.configure(text="Calculando distancia exacta de la ruta...", text_color=APP_COLORS["muted"])
+        update_route_card(
+            self.origin_label,
+            self.destination_label,
+            self._route_origin_text,
+            self._route_destination_text,
+            route_info_label=self.route_info_label,
+            route_info="Calculando ruta...",
+        )
+
+        origin = _format_waypoint(self.origin_coords, self._route_origin_text)
+        destination = _format_waypoint(self.destination_coords, self._route_destination_text)
+        avoid_tolls = self.road_var.get() == "free"
+        road = "libre" if avoid_tolls else "cuota"
+        base_dir = self.base_dir
+        origin_text = self._route_origin_text
+        destination_text = self._route_destination_text
+        travel_mode = self.config.get("route", {}).get("travel_mode", "DRIVE")
+
+        def worker() -> None:
+            try:
+                load_dotenv(base_dir / ".env", encoding="utf-8-sig")
+                api_key = os.getenv("GOOGLE_ROUTES_API_KEY", "").strip()
+                if not api_key:
+                    raise ValueError("Configura la API de Google Routes para calcular la distancia exacta.")
+                preview = RoutesClient(api_key).preview_route(
+                    origin=origin,
+                    destination=destination,
+                    travel_mode=travel_mode,
+                    avoid_tolls=avoid_tolls,
+                )
+                route_info = f"Distancia: {preview.distance_km:.2f} km · Tiempo: {preview.duration_minutes} min ({road})"
+                message = f"Enlace valido. {route_info}"
+
+                def apply_success() -> None:
+                    if token != self._preview_token:
+                        return
+                    self.link_hint.configure(text=message, text_color=APP_COLORS["success"])
+                    update_route_card(
+                        self.origin_label,
+                        self.destination_label,
+                        origin_text,
+                        destination_text,
+                        route_info_label=self.route_info_label,
+                        route_info=route_info,
+                    )
+
+                self.after(0, apply_success)
+            except Exception as exc:
+                def apply_error() -> None:
+                    if token != self._preview_token:
+                        return
+                    self.link_hint.configure(text=f"Enlace valido. {exc}", text_color=APP_COLORS["warning"])
+                    update_route_card(
+                        self.origin_label,
+                        self.destination_label,
+                        origin_text,
+                        destination_text,
+                        route_info_label=self.route_info_label,
+                        route_info="",
+                    )
+
+                self.after(0, apply_error)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _schedule_route_preview_from_labels(self) -> None:
+        """Recalcula preview usando solo etiquetas cuando no hay coordenadas."""
+        self._preview_token += 1
+        token = self._preview_token
+        origin = self._route_origin_text
+        destination = self._route_destination_text
+        avoid_tolls = self.road_var.get() == "free"
+        road = "libre" if avoid_tolls else "cuota"
+        base_dir = self.base_dir
+        travel_mode = self.config.get("route", {}).get("travel_mode", "DRIVE")
+
+        def worker() -> None:
+            try:
+                load_dotenv(base_dir / ".env", encoding="utf-8-sig")
+                api_key = os.getenv("GOOGLE_ROUTES_API_KEY", "").strip()
+                if not api_key:
+                    raise ValueError("Configura la API de Google Routes para calcular la distancia exacta.")
+                preview = RoutesClient(api_key).preview_route(
+                    origin=origin,
+                    destination=destination,
+                    travel_mode=travel_mode,
+                    avoid_tolls=avoid_tolls,
+                )
+                route_info = f"Distancia: {preview.distance_km:.2f} km · Tiempo: {preview.duration_minutes} min ({road})"
+                message = f"Enlace valido. {route_info}"
+
+                def apply_success() -> None:
+                    if token != self._preview_token:
+                        return
+                    self.link_hint.configure(text=message, text_color=APP_COLORS["success"])
+                    update_route_card(
+                        self.origin_label,
+                        self.destination_label,
+                        origin,
+                        destination,
+                        route_info_label=self.route_info_label,
+                        route_info=route_info,
+                    )
+
+                self.after(0, apply_success)
+            except Exception as exc:
+                def apply_error() -> None:
+                    if token != self._preview_token:
+                        return
+                    self.link_hint.configure(text=f"Enlace valido. {exc}", text_color=APP_COLORS["warning"])
+
+                self.after(0, apply_error)
+
+        threading.Thread(target=worker, daemon=True).start()
+
     def _on_link_changed(self, raw: str, error: str | None = None) -> None:
         if error:
             self.link_hint.configure(text=error, text_color=APP_COLORS["warning"])
-            update_route_card(self.origin_label, self.destination_label, "", "")
+            update_route_card(self.origin_label, self.destination_label, "", "", route_info_label=self.route_info_label)
             return
         if not raw:
             self.link_hint.configure(text="Comparte la ruta desde Google Maps y pega el enlace aqui.", text_color=APP_COLORS["muted"])
-            update_route_card(self.origin_label, self.destination_label, "", "")
+            update_route_card(self.origin_label, self.destination_label, "", "", route_info_label=self.route_info_label)
             return
         try:
             parsed = parse_google_maps_link(raw)
         except GoogleMapsLinkError as exc:
             self.link_hint.configure(text=str(exc), text_color=APP_COLORS["warning"])
-            update_route_card(self.origin_label, self.destination_label, "", "")
+            update_route_card(self.origin_label, self.destination_label, "", "", route_info_label=self.route_info_label)
             return
+
         self.origin_coords = parsed.origin_coords
         self.destination_coords = parsed.destination_coords
-        update_route_card(self.origin_label, self.destination_label, parsed.origin, parsed.destination)
-        hint = "Enlace valido."
+        self._route_origin_text = parsed.origin
+        self._route_destination_text = parsed.destination
+        update_route_card(
+            self.origin_label,
+            self.destination_label,
+            parsed.origin,
+            parsed.destination,
+            route_info_label=self.route_info_label,
+        )
+
         if parsed.origin_coords and parsed.destination_coords:
-            straight_km = haversine_km(
-                parsed.origin_coords[0],
-                parsed.origin_coords[1],
-                parsed.destination_coords[0],
-                parsed.destination_coords[1],
+            self._schedule_route_preview()
+        elif parsed.origin and parsed.destination:
+            self.link_hint.configure(text="Calculando distancia exacta de la ruta...", text_color=APP_COLORS["muted"])
+            self._schedule_route_preview_from_labels()
+        else:
+            self.link_hint.configure(
+                text="Enlace valido, pero faltan datos para calcular la distancia exacta.",
+                text_color=APP_COLORS["warning"],
             )
-            hint += f" Distancia aprox. {straight_km:.0f} km (linea recta)."
-        self.link_hint.configure(text=hint, text_color=APP_COLORS["success"])
 
     def _append_log(self, message: str) -> None:
         self.log_box.insert("end", format_log_line(message) + "\n")
@@ -229,17 +376,21 @@ class RouteAccidentBotApp(ctk.CTk):
             raise ValueError(str(exc)) from exc
         self.origin_coords = parsed.origin_coords
         self.destination_coords = parsed.destination_coords
-        update_route_card(self.origin_label, self.destination_label, parsed.origin, parsed.destination)
-        hint = "Enlace valido."
+        self._route_origin_text = parsed.origin
+        self._route_destination_text = parsed.destination
+        update_route_card(
+            self.origin_label,
+            self.destination_label,
+            parsed.origin,
+            parsed.destination,
+            route_info_label=self.route_info_label,
+        )
         if parsed.origin_coords and parsed.destination_coords:
-            straight_km = haversine_km(
-                parsed.origin_coords[0],
-                parsed.origin_coords[1],
-                parsed.destination_coords[0],
-                parsed.destination_coords[1],
-            )
-            hint += f" Distancia aprox. {straight_km:.0f} km (linea recta)."
-        self.link_hint.configure(text=hint, text_color=APP_COLORS["success"])
+            self._schedule_route_preview()
+        elif parsed.origin and parsed.destination:
+            self._schedule_route_preview_from_labels()
+        else:
+            self.link_hint.configure(text="Enlace valido.", text_color=APP_COLORS["success"])
         return raw, parsed.origin, parsed.destination
 
     def _save_config_from_form(self, maps_link: str, origin: str, destination: str) -> None:

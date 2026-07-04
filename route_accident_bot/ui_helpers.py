@@ -99,7 +99,7 @@ def build_section_title(parent: ctk.CTkBaseClass, text: str) -> None:
     ).pack(anchor="w", padx=14, pady=(14, 6))
 
 
-def build_route_card(parent: ctk.CTkBaseClass) -> tuple[ctk.CTkLabel, ctk.CTkLabel]:
+def build_route_card(parent: ctk.CTkBaseClass) -> tuple[ctk.CTkLabel, ctk.CTkLabel, ctk.CTkLabel]:
     card = ctk.CTkFrame(parent, fg_color=APP_COLORS["card"], border_width=1, border_color=APP_COLORS["card_border"])
     card.pack(fill="x", padx=14, pady=(0, 10))
 
@@ -121,8 +121,19 @@ def build_route_card(parent: ctk.CTkBaseClass) -> tuple[ctk.CTkLabel, ctk.CTkLab
         text_color="gray80",
         wraplength=640,
     )
-    destination.pack(fill="x", padx=12, pady=(2, 10))
-    return origin, destination
+    destination.pack(fill="x", padx=12, pady=(2, 2))
+
+    route_info = ctk.CTkLabel(
+        card,
+        text="",
+        anchor="w",
+        justify="left",
+        text_color="gray65",
+        font=ctk.CTkFont(size=12),
+        wraplength=640,
+    )
+    route_info.pack(fill="x", padx=12, pady=(2, 10))
+    return origin, destination, route_info
 
 
 def update_route_card(
@@ -130,6 +141,8 @@ def update_route_card(
     destination_label: ctk.CTkLabel,
     origin: str,
     destination: str,
+    route_info_label: ctk.CTkLabel | None = None,
+    route_info: str = "",
 ) -> None:
     if origin and destination:
         origin_label.configure(text=f"Origen: {truncate_text(origin)}")
@@ -137,11 +150,19 @@ def update_route_card(
     else:
         origin_label.configure(text="Origen: pega un enlace de Google Maps")
         destination_label.configure(text="Destino: —")
+    if route_info_label is not None:
+        route_info_label.configure(text=route_info)
 
 
-def build_road_selector(parent: ctk.CTkBaseClass, variable: tk.StringVar) -> ctk.CTkSegmentedButton:
+def build_road_selector(
+    parent: ctk.CTkBaseClass,
+    variable: tk.StringVar,
+    on_change: Callable[..., None] | None = None,
+) -> ctk.CTkSegmentedButton:
     def on_select(value: str) -> None:
         variable.set("free" if "Libre" in value else "toll")
+        if on_change:
+            on_change()
 
     selector = ctk.CTkSegmentedButton(
         parent,

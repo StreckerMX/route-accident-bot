@@ -105,7 +105,7 @@ def format_alert_popup_body(result: AlertResult) -> str:
         status = "atasco severo" if comp.has_severe_jam else "sin atascos severos"
         marker = " (actual)" if comp.is_primary else ""
         lines.append(
-            f"  • {comp.label}{marker}: {comp.duration_minutes} min "
+            f"  • {comp.label}{marker}: {comp.distance_km:.2f} km, {comp.duration_minutes} min "
             f"(+{comp.delay_minutes} min) — {status}"
         )
 
@@ -114,6 +114,10 @@ def format_alert_popup_body(result: AlertResult) -> str:
     lines.append(f"Motivo: {result.recommendation.reason}")
     if result.recommendation.minutes_saved > 0:
         lines.append(f"Ahorro potencial: ~{result.recommendation.minutes_saved} min")
+
+    if result.main_event:
+        lines.append("")
+        lines.append("Usa «Ver retraso en Maps» para abrir el punto exacto del incidente.")
 
     return "\n".join(lines)
 

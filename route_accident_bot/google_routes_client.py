@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
 import requests
 
 ROUTES_URL = "https://routes.googleapis.com/directions/v2:computeRoutes"
+
+@dataclass
+class RoutePreview:
+    distance_km: float
+    duration_minutes: int
+
 
 FIELD_MASK = ",".join([
     "routes.duration",
@@ -88,7 +95,29 @@ class RoutesClient:
     @staticmethod
     def route_distance_km(route: dict[str, Any]) -> float:
         meters = route.get("distanceMeters", 0)
-        return round(meters / 1000, 1)
+        return round(meters / 1000, 2)
+
+    def preview_route(
+        self,
+        origin: str,
+        destination: str,
+        travel_mode: str = "DRIVE",
+        avoid_tolls: bool = False,
+    ) -> RoutePreview:
+        routes = self.compute_routes(
+            origin=origin,
+            destination=destination,
+            travel_mode=travel_mode,
+            compute_alternatives=False,
+            avoid_tolls=avoid_tolls,
+        )
+        if not routes:
+            raise ValueError("No se pudo calcular la ruta.")
+        primary = routes[0]
+        return RoutePreview(
+            distance_km=self.route_distance_km(primary),
+            duration_minutes=self.route_duration_minutes(primary),
+        )
 
     @staticmethod
     def route_label(route: dict[str, Any], index: int) -> str:
