@@ -19,3 +19,8 @@ investigation:
 advisor:
   compute_alternatives: true
   recommend_switch_if_saves_minutes: 10
+
+telegram:
+  enabled: false
+  notify_on_alert: true
+  notify_on_ok: false

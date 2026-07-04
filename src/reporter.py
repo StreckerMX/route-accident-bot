@@ -18,6 +18,14 @@ def _speed_label(speed: str) -> str:
     }.get(speed, speed)
 
 
+def _escape_html(text: str) -> str:
+    return (
+        text.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+
+
 def format_ok_check(timestamp: datetime, primary: RouteAnalysis) -> str:
     return (
         f"[{timestamp.strftime('%H:%M:%S')}] OK — "
@@ -97,5 +105,69 @@ def format_alert(
     lines.append(f"Mapa: {recommendation.maps_url}")
     lines.append("═" * 50)
     lines.append("")
+
+    return "\n".join(lines)
+
+
+def format_alert_telegram(
+    timestamp: datetime,
+    primary: RouteAnalysis,
+    main_event: TrafficEvent | None,
+    location: LocationInfo,
+    news: list[NewsItem],
+    comparisons: list[RouteComparison],
+    recommendation: Recommendation,
+) -> str:
+    lines = [
+        f"<b>🚨 ALERTA DE TRÁFICO</b> — {timestamp.strftime('%H:%M:%S')}",
+        "",
+    ]
+
+    if main_event:
+        lines.append(f"<b>Ubicación:</b> {_escape_html(location.formatted_address)}")
+        if location.road:
+            lines.append(f"<b>Vía:</b> {_escape_html(location.road)}")
+        lines.append(
+            f"<b>Condición:</b> {_speed_label(main_event.speed)} "
+            f"(severidad {main_event.severity})"
+        )
+    else:
+        lines.append(f"<b>Ubicación:</b> {_escape_html(location.formatted_address)}")
+
+    lines.append(
+        f"<b>Retraso:</b> +{primary.delay_minutes} min "
+        f"(total: {primary.duration_minutes} min)"
+    )
+
+    lines.append("")
+    lines.append("<b>Investigación:</b>")
+    if news:
+        for item in news[:3]:
+            snippet = item.snippet[:120] + "..." if len(item.snippet) > 120 else item.snippet
+            lines.append(f"• [{_escape_html(item.source)}] {_escape_html(item.title)}")
+            if snippet:
+                lines.append(f"  <i>{_escape_html(snippet)}</i>")
+    else:
+        lines.append(
+            "<i>Sin reportes públicos recientes. Posible accidente no reportado, "
+            "obra vial o alto volumen vehicular.</i>"
+        )
+
+    lines.append("")
+    lines.append("<b>Rutas:</b>")
+    for comp in comparisons:
+        status = "atasco" if comp.has_severe_jam else "sin atasco"
+        marker = " (actual)" if comp.is_primary else ""
+        lines.append(
+            f"• {_escape_html(comp.label)}{marker}: {comp.duration_minutes} min "
+            f"(+{comp.delay_minutes}) — {status}"
+        )
+
+    lines.append("")
+    lines.append(f"<b>Recomendación:</b> {recommendation.action}")
+    lines.append(f"{_escape_html(recommendation.reason)}")
+    if recommendation.minutes_saved > 0:
+        lines.append(f"Ahorro potencial: ~{recommendation.minutes_saved} min")
+    lines.append(f'<a href="{recommendation.maps_url}">Ver en Google Maps</a>')
 
     return "\n".join(lines)

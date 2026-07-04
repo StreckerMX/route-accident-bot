@@ -15,7 +15,8 @@ from dotenv import load_dotenv
 
 from src.geocoder import Geocoder
 from src.investigator import Investigator
-from src.reporter import format_alert, format_ok_check
+from src.reporter import format_alert, format_alert_telegram, format_ok_check
+from src.telegram_notifier import TelegramNotifier
 from src.route_advisor import compare_routes, recommend
 from src.routes_client import RoutesClient
 from src.traffic_analyzer import analyze_route
@@ -46,6 +47,7 @@ def main() -> int:
     monitor_cfg = config.get("monitor", {})
     investigation_cfg = config.get("investigation", {})
     advisor_cfg = config.get("advisor", {})
+    telegram_cfg = config.get("telegram", {})
 
     origin = route_cfg.get("origin", "").strip()
     destination = route_cfg.get("destination", "").strip()
@@ -67,6 +69,17 @@ def main() -> int:
         max_results=investigation_cfg.get("max_news_results", 5),
     )
 
+    telegram = TelegramNotifier(
+        bot_token=os.getenv("TELEGRAM_BOT_TOKEN", ""),
+        chat_id=os.getenv("TELEGRAM_CHAT_ID", ""),
+    )
+    telegram_enabled = telegram_cfg.get("enabled", False) and telegram.enabled
+    notify_on_alert = telegram_cfg.get("notify_on_alert", True)
+    notify_on_ok = telegram_cfg.get("notify_on_ok", False)
+
+    if telegram_cfg.get("enabled", False) and not telegram.enabled:
+        print("Aviso: telegram.enabled=true pero faltan TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID en .env")
+
     print("═" * 50)
     print("  Route Accident Bot — Monitoreo activo")
     print("═" * 50)
@@ -74,6 +87,7 @@ def main() -> int:
     print(f"  Destino:     {destination}")
     print(f"  Intervalo:   cada {interval} min")
     print(f"  Umbral:      +{delay_threshold} min de retraso")
+    print(f"  Telegram:    {'activo' if telegram_enabled else 'desactivado'}")
     print("  Ctrl+C para detener")
     print("═" * 50)
     print()
@@ -146,20 +160,46 @@ def main() -> int:
                                 analyses, origin, destination, switch_threshold
                             )
 
-                            print(
-                                format_alert(
-                                    timestamp=now,
-                                    primary=primary,
-                                    main_event=main_event,
-                                    location=location,
-                                    news=news,
-                                    comparisons=comparisons,
-                                    recommendation=recommendation,
-                                )
+                            alert_text = format_alert(
+                                timestamp=now,
+                                primary=primary,
+                                main_event=main_event,
+                                location=location,
+                                news=news,
+                                comparisons=comparisons,
+                                recommendation=recommendation,
                             )
+                            print(alert_text)
+
+                            if telegram_enabled and notify_on_alert:
+                                try:
+                                    sent = telegram.send(
+                                        format_alert_telegram(
+                                            timestamp=now,
+                                            primary=primary,
+                                            main_event=main_event,
+                                            location=location,
+                                            news=news,
+                                            comparisons=comparisons,
+                                            recommendation=recommendation,
+                                        )
+                                    )
+                                    if sent:
+                                        print("  📱 Alerta enviada a Telegram.")
+                                    else:
+                                        print("  ⚠️ No se pudo enviar la alerta a Telegram.")
+                                except Exception as exc:
+                                    print(f"  ⚠️ Error de Telegram: {exc}")
+
                             last_alert_at = time.time()
                     else:
-                        print(format_ok_check(now, primary))
+                        ok_text = format_ok_check(now, primary)
+                        print(ok_text)
+                        if telegram_enabled and notify_on_ok:
+                            try:
+                                telegram.send(ok_text, parse_mode=None)
+                            except Exception as exc:
+                                print(f"  ⚠️ Error de Telegram: {exc}")
 
             except requests.HTTPError as exc:
                 print(f"[{now.strftime('%H:%M:%S')}] Error HTTP: {exc}")

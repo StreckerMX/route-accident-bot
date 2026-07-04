@@ -1,8 +1,17 @@
 # Route Accident Bot
 
-Bot en Python que monitorea una ruta de Google Maps en tiempo real, detecta congestión severa, investiga posibles accidentes con noticias locales y recomienda si conviene cambiar de ruta.
+[![Python](https://img.shields.io/badge/python-3.10+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![GitHub last commit](https://img.shields.io/github/last-commit/StreckerMX/route-accident-bot)](https://github.com/StreckerMX/route-accident-bot/commits/main)
+[![GitHub repo size](https://img.shields.io/github/repo-size/StreckerMX/route-accident-bot)](https://github.com/StreckerMX/route-accident-bot)
+[![Google Maps Platform](https://img.shields.io/badge/Google%20Maps-Routes%20API-4285F4?logo=googlemaps&logoColor=white)](https://developers.google.com/maps/documentation/routes)
+[![Telegram](https://img.shields.io/badge/Telegram-notifications-26A5E4?logo=telegram&logoColor=white)](https://core.telegram.org/bots)
+
+Bot en Python que monitorea una ruta de Google Maps en tiempo real, detecta congestión severa, investiga posibles accidentes con noticias locales y recomienda si conviene cambiar de ruta. Soporta **alertas por Telegram**.
 
 > **Nota:** La API oficial de Google no expone incidentes etiquetados como "accidente" (eso solo aparece en la app de Google Maps). Este bot detecta **atascos severos + retrasos** y complementa la información buscando noticias en la vía afectada.
+
+[English version below](#english)
 
 ---
 
@@ -14,6 +23,7 @@ Bot en Python que monitorea una ruta de Google Maps en tiempo real, detecta cong
 - Búsqueda automática de noticias relacionadas (DuckDuckGo)
 - Comparación con rutas alternativas
 - Recomendación clara: `MANTENER_RUTA`, `CONSIDERAR_ALTERNATIVA` o `CAMBIAR_RUTA`
+- **Notificaciones por Telegram** en cada alerta
 - Configuración completa por archivo, sin editar código
 
 ---
@@ -26,6 +36,7 @@ Bot en Python que monitorea una ruta de Google Maps en tiempo real, detecta cong
   - [Routes API](https://console.cloud.google.com/apis/library/routes.googleapis.com)
   - [Geocoding API](https://console.cloud.google.com/apis/library/geocoding-backend.googleapis.com)
 - API Key de Google Maps Platform
+- *(Opcional)* Bot de Telegram para recibir alertas en el celular
 
 ---
 
@@ -56,9 +67,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. Configurar la API Key
-
-Copia el archivo de ejemplo y agrega tu clave:
+### 4. Configurar variables de entorno
 
 ```bash
 # Windows
@@ -72,6 +81,10 @@ Edita `.env`:
 
 ```env
 GOOGLE_MAPS_API_KEY=tu_clave_de_google_maps_aqui
+
+# Opcional — Telegram
+TELEGRAM_BOT_TOKEN=tu_token_de_botfather
+TELEGRAM_CHAT_ID=tu_chat_id
 ```
 
 ### 5. Configurar la ruta a monitorear
@@ -85,9 +98,9 @@ route:
   travel_mode: "DRIVE"   # DRIVE | TWO_WHEELER
 
 monitor:
-  interval_minutes: 5              # Cada cuántos minutos revisar
-  jam_delay_threshold_minutes: 8   # Retraso mínimo para alertar
-  cooldown_minutes: 15             # Evita repetir la misma alerta
+  interval_minutes: 5
+  jam_delay_threshold_minutes: 8
+  cooldown_minutes: 15
 
 investigation:
   language: "es"
@@ -95,11 +108,15 @@ investigation:
   search_queries:
     - "accidente {road} {city}"
     - "choque {road} {city} hoy"
-    - "tráfico {road} {city}"
 
 advisor:
   compute_alternatives: true
   recommend_switch_if_saves_minutes: 10
+
+telegram:
+  enabled: false          # Cambiar a true para activar
+  notify_on_alert: true   # Enviar alertas de tráfico
+  notify_on_ok: false     # Enviar mensaje en cada revisión OK (no recomendado)
 ```
 
 ---
@@ -112,37 +129,75 @@ python main.py
 
 El bot revisará la ruta cada `interval_minutes` minutos. Presiona `Ctrl+C` para detenerlo.
 
-### Salida normal (sin problemas)
+---
+
+## Notificaciones por Telegram
+
+### Paso 1 — Crear el bot
+
+1. Abre Telegram y busca **[@BotFather](https://t.me/BotFather)**
+2. Envía `/newbot` y sigue las instrucciones
+3. Copia el **token** que te entrega (ej. `7123456789:AAHxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`)
+4. Pégalo en `.env` como `TELEGRAM_BOT_TOKEN`
+
+### Paso 2 — Obtener tu Chat ID
+
+**Opción A — Bot de información**
+
+1. Busca **[@userinfobot](https://t.me/userinfobot)** en Telegram
+2. Envíale `/start`
+3. Copia tu **Id** numérico (ej. `123456789`)
+4. Pégalo en `.env` como `TELEGRAM_CHAT_ID`
+
+**Opción B — API manual**
+
+1. Envía cualquier mensaje a tu bot recién creado (ej. `hola`)
+2. Abre en el navegador:
+   ```
+   https://api.telegram.org/bot<TU_TOKEN>/getUpdates
+   ```
+3. Busca `"chat":{"id":123456789}` en la respuesta JSON
+4. Ese número es tu `TELEGRAM_CHAT_ID`
+
+### Paso 3 — Activar en el bot
+
+1. En `.env`, configura `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID`
+2. En `config.yaml`, cambia:
+   ```yaml
+   telegram:
+     enabled: true
+     notify_on_alert: true
+   ```
+3. Ejecuta `python main.py`
+
+Cuando detecte un atasco, recibirás un mensaje como:
 
 ```
-[14:30:00] OK — Ruta: 45 min (+3 min de retraso)
-```
+🚨 ALERTA DE TRÁFICO — 14:32:15
 
-### Salida con alerta
-
-```
-══════════════════════════════════════════════════
-ALERTA DE TRÁFICO — 14:32:15
-══════════════════════════════════════════════════
 Ubicación: Av. Insurgentes Sur, Ciudad de México
-Vía: Avenida Insurgentes Sur
 Condición: atasco severo (severidad ALTA)
-Retraso estimado: +18 min (ruta total: 52 min)
+Retraso: +18 min (total: 52 min)
 
 Investigación:
-  • [El Universal] Choque múltiple deja dos carriles cerrados...
-  • No se encontraron reportes públicos recientes...
+• [El Universal] Choque múltiple deja dos carriles cerrados...
 
-Rutas disponibles:
-  • Ruta principal (actual): 52 min (+18 min) — atasco severo
-  • Alternativa 1: 39 min (+5 min) — sin atascos severos
+Rutas:
+• Ruta principal (actual): 52 min — atasco
+• Alternativa 1: 39 min — sin atasco
 
 Recomendación: CAMBIAR_RUTA
-Motivo: La ruta alternativa ahorra ~13 min y no muestra atascos severos.
-Ahorro potencial: ~13 min
-Mapa: https://www.google.com/maps/dir/?api=1&origin=...
-══════════════════════════════════════════════════
+Ver en Google Maps
 ```
+
+### Solución de problemas — Telegram
+
+| Problema | Solución |
+|----------|----------|
+| No llegan mensajes | Verifica que enviaste `/start` a tu bot antes de usarlo |
+| `telegram.enabled=true` pero no envía | Revisa que `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID` estén en `.env` |
+| Error 401 Unauthorized | El token del bot es incorrecto o fue revocado en BotFather |
+| Error 400 Bad Request | El `CHAT_ID` es incorrecto; usa el número sin comillas |
 
 ---
 
@@ -150,7 +205,7 @@ Mapa: https://www.google.com/maps/dir/?api=1&origin=...
 
 1. Ve a [Google Cloud Console](https://console.cloud.google.com/)
 2. Crea un proyecto nuevo o selecciona uno existente
-3. Habilita **Routes API** y **Geocoding API** (enlaces en la sección Requisitos)
+3. Habilita **Routes API** y **Geocoding API**
 4. Ve a **APIs y servicios → Credenciales → Crear credenciales → Clave de API**
 5. Restringe la clave solo a las APIs que usa este bot (recomendado)
 6. Activa facturación en el proyecto (Google ofrece crédito mensual gratuito)
@@ -163,8 +218,8 @@ Mapa: https://www.google.com/maps/dir/?api=1&origin=...
 route-accident-bot/
 ├── main.py                 # Punto de entrada y bucle de monitoreo
 ├── config.yaml             # Configuración de ruta y umbrales
-├── .env.example            # Plantilla para la API key
-├── requirements.txt        # Dependencias Python
+├── .env.example            # Plantilla para API keys
+├── requirements.txt
 ├── README.md
 └── src/
     ├── routes_client.py    # Cliente Google Routes API v2
@@ -172,7 +227,8 @@ route-accident-bot/
     ├── geocoder.py         # Geocodificación inversa
     ├── investigator.py     # Búsqueda de noticias
     ├── route_advisor.py    # Comparación y recomendación de rutas
-    └── reporter.py         # Formato de reportes en consola
+    ├── reporter.py         # Formato de reportes
+    └── telegram_notifier.py # Envío de alertas a Telegram
 ```
 
 ---
@@ -190,41 +246,24 @@ flowchart TD
     news --> summary[Resumen y recomendación]
     routesAPI --> alt[Rutas alternativas]
     alt --> summary
-    summary --> alert[Alerta en consola]
+    summary --> alert[Consola + Telegram]
     alert --> wait
     wait --> monitor
 ```
-
-1. **Routes API** calcula la ruta con tráfico en tiempo real y devuelve segmentos `NORMAL`, `SLOW` o `TRAFFIC_JAM`.
-2. Si el retraso supera el umbral configurado, se toma la coordenada del atasco.
-3. **Geocoding API** traduce esa coordenada a calle y ciudad.
-4. **Investigator** busca noticias con plantillas configurables.
-5. **Route Advisor** compara la ruta principal con alternativas y emite la recomendación.
 
 ---
 
 ## Parámetros de configuración
 
-| Parámetro | Descripción | Valor por defecto |
-|-----------|-------------|-------------------|
-| `route.origin` | Punto de partida (dirección o lugar) | — |
+| Parámetro | Descripción | Default |
+|-----------|-------------|---------|
+| `route.origin` | Punto de partida | — |
 | `route.destination` | Destino | — |
-| `route.travel_mode` | Modo de viaje (`DRIVE`, `TWO_WHEELER`) | `DRIVE` |
 | `monitor.interval_minutes` | Frecuencia de revisión | `5` |
 | `monitor.jam_delay_threshold_minutes` | Retraso mínimo para alertar | `8` |
-| `monitor.cooldown_minutes` | Tiempo entre alertas repetidas | `15` |
-| `investigation.max_news_results` | Máximo de noticias a mostrar | `5` |
-| `advisor.recommend_switch_if_saves_minutes` | Minutos de ahorro para recomendar cambio | `10` |
-
----
-
-## Costos estimados de la API
-
-Con monitoreo cada **5 minutos**:
-- ~288 llamadas/día a Routes API (con tráfico, tarifa "Preferred")
-- Llamadas adicionales a Geocoding solo cuando hay alerta
-
-Google Maps Platform incluye **crédito mensual gratuito** (consulta [precios actuales](https://mapsplatform.google.com/pricing/)). Para uso personal con un intervalo de 5–10 minutos, normalmente queda dentro del crédito gratuito.
+| `telegram.enabled` | Activar notificaciones Telegram | `false` |
+| `telegram.notify_on_alert` | Enviar en alertas de tráfico | `true` |
+| `advisor.recommend_switch_if_saves_minutes` | Minutos de ahorro para cambiar ruta | `10` |
 
 ---
 
@@ -232,23 +271,11 @@ Google Maps Platform incluye **crédito mensual gratuito** (consulta [precios ac
 
 | Error | Solución |
 |-------|----------|
-| `define GOOGLE_MAPS_API_KEY en el archivo .env` | Crea `.env` desde `.env.example` y agrega tu clave |
-| `403 PERMISSION_DENIED` | Habilita Routes API y Geocoding API en Google Cloud |
-| `Sin rutas disponibles` | Verifica que origen y destino sean direcciones válidas |
-| No encuentra noticias | Normal en incidentes recientes no reportados; el bot igual muestra datos de tráfico |
-| `Requests quota exceeded` | Aumenta `interval_minutes` en `config.yaml` |
-
----
-
-## Dependencias
-
-| Paquete | Uso |
-|---------|-----|
-| `requests` | Llamadas a Google APIs |
-| `pyyaml` | Lectura de `config.yaml` |
-| `python-dotenv` | Variables de entorno (`.env`) |
-| `polyline` | Decodificar polilíneas de la ruta |
-| `duckduckgo-search` | Búsqueda de noticias (sin API key adicional) |
+| `define GOOGLE_MAPS_API_KEY` | Crea `.env` desde `.env.example` |
+| `403 PERMISSION_DENIED` | Habilita Routes API y Geocoding API |
+| `Sin rutas disponibles` | Verifica origen y destino en `config.yaml` |
+| No encuentra noticias | Normal en incidentes no reportados aún |
+| `Requests quota exceeded` | Aumenta `interval_minutes` |
 
 ---
 
@@ -260,4 +287,130 @@ MIT — Libre para usar, modificar y distribuir.
 
 ## Contribuciones
 
-Issues y pull requests son bienvenidos. Si mejoras la detección, agregas notificaciones (email, Telegram, etc.) o soporte para múltiples rutas, comparte tu contribución.
+Issues y pull requests son bienvenidos.
+
+---
+
+# English
+
+[![Python](https://img.shields.io/badge/python-3.10+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
+Python bot that continuously monitors a Google Maps route, detects severe traffic congestion, investigates possible accidents via local news, compares alternative routes, and recommends whether to switch. Supports **Telegram notifications**.
+
+> **Note:** Google's official API does not expose incidents labeled as "accident" (that only appears in the Google Maps app). This bot detects **severe jams + delays** and supplements with news search on the affected road.
+
+---
+
+## Features
+
+- Continuous route monitoring (origin → destination)
+- Real-time traffic detection via **Google Routes API v2**
+- Reverse geocoding of jam locations
+- Automatic news search (DuckDuckGo)
+- Alternative route comparison
+- Clear recommendations: `MANTENER_RUTA`, `CONSIDERAR_ALTERNATIVA`, or `CAMBIAR_RUTA`
+- **Telegram push notifications** on traffic alerts
+- Fully configurable via `config.yaml`
+
+---
+
+## Quick Start
+
+```bash
+git clone https://github.com/StreckerMX/route-accident-bot.git
+cd route-accident-bot
+python -m venv venv
+
+# Windows
+venv\Scripts\activate
+# macOS / Linux
+source venv/bin/activate
+
+pip install -r requirements.txt
+cp .env.example .env   # add GOOGLE_MAPS_API_KEY
+# Edit config.yaml with your origin and destination
+python main.py
+```
+
+---
+
+## Telegram Notifications
+
+### Step 1 — Create a bot
+
+1. Open Telegram and search for **[@BotFather](https://t.me/BotFather)**
+2. Send `/newbot` and follow the prompts
+3. Copy the **token** (e.g. `7123456789:AAHxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`)
+4. Set it in `.env` as `TELEGRAM_BOT_TOKEN`
+
+### Step 2 — Get your Chat ID
+
+**Option A — Info bot**
+
+1. Search **[@userinfobot](https://t.me/userinfobot)** on Telegram
+2. Send `/start`
+3. Copy your numeric **Id** (e.g. `123456789`)
+4. Set it in `.env` as `TELEGRAM_CHAT_ID`
+
+**Option B — Manual API**
+
+1. Send any message to your new bot (e.g. `hello`)
+2. Open in browser:
+   ```
+   https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates
+   ```
+3. Find `"chat":{"id":123456789}` in the JSON response
+4. That number is your `TELEGRAM_CHAT_ID`
+
+### Step 3 — Enable notifications
+
+1. Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `.env`
+2. In `config.yaml`:
+   ```yaml
+   telegram:
+     enabled: true
+     notify_on_alert: true
+   ```
+3. Run `python main.py`
+
+You'll receive a formatted alert on your phone whenever severe traffic is detected, including location, news findings, route comparison, and a Google Maps link.
+
+### Telegram troubleshooting
+
+| Issue | Fix |
+|-------|-----|
+| No messages received | Send `/start` to your bot first |
+| `enabled=true` but no sends | Check `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `.env` |
+| 401 Unauthorized | Invalid or revoked bot token |
+| 400 Bad Request | Wrong `CHAT_ID` — use the numeric ID only |
+
+---
+
+## Requirements
+
+- Python 3.10+
+- [Google Cloud](https://console.cloud.google.com/) account with billing
+- Enabled APIs: [Routes API](https://console.cloud.google.com/apis/library/routes.googleapis.com), [Geocoding API](https://console.cloud.google.com/apis/library/geocoding-backend.googleapis.com)
+- Google Maps Platform API key
+- *(Optional)* Telegram bot for mobile alerts
+
+---
+
+## Configuration reference
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `route.origin` | Starting point | — |
+| `route.destination` | Destination | — |
+| `monitor.interval_minutes` | Check frequency (minutes) | `5` |
+| `monitor.jam_delay_threshold_minutes` | Min delay to trigger alert | `8` |
+| `telegram.enabled` | Enable Telegram notifications | `false` |
+| `telegram.notify_on_alert` | Send on traffic alerts | `true` |
+| `advisor.recommend_switch_if_saves_minutes` | Min savings to recommend switch | `10` |
+
+---
+
+## License
+
+MIT — Free to use, modify, and distribute.
