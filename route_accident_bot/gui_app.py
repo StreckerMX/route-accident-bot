@@ -7,6 +7,8 @@ from pathlib import Path
 
 import customtkinter as ctk
 
+from .alert_popup import show_traffic_alert_popup
+from .alert_reporter import AlertResult
 from .config_state import SETTINGS_FILE, is_config_complete, load_config, save_config
 from .google_maps_link_parser import GoogleMapsLinkError, parse_google_maps_link, parse_location_label
 from .monitor_service import RouteMonitor
@@ -191,6 +193,9 @@ class RouteAccidentBotApp(ctk.CTk):
     def _thread_safe_maps_link(self, url: str, label: str) -> None:
         self.after(0, lambda: self._show_maps_button(url, label))
 
+    def _thread_safe_alert(self, result: AlertResult) -> None:
+        self.after(0, lambda: show_traffic_alert_popup(self, result))
+
     def _show_maps_button(self, url: str, label: str) -> None:
         if self._maps_link_button is not None:
             self._maps_link_button.destroy()
@@ -246,6 +251,7 @@ class RouteAccidentBotApp(ctk.CTk):
                 config=self.config,
                 on_log=self._thread_safe_log,
                 on_status=self._thread_safe_status,
+                on_alert=self._thread_safe_alert,
                 on_maps_link=self._thread_safe_maps_link,
                 origin_coords=self.origin_coords,
                 destination_coords=self.destination_coords,
