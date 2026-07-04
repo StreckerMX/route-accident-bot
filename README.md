@@ -40,7 +40,31 @@ Bot en Python que monitorea una ruta de Google Maps en tiempo real, detecta cong
 
 ---
 
-## Instalación
+## Instalación rápida (Windows)
+
+Copia y pega este comando en PowerShell. El instalador [`Install-RouteAccidentBot.ps1`](Install-RouteAccidentBot.ps1) configura todo de forma interactiva:
+
+```powershell
+git clone https://github.com/StreckerMX/route-accident-bot.git; cd route-accident-bot; Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass; .\Install-RouteAccidentBot.ps1
+```
+
+El asistente te pedirá:
+1. API Key de Google Maps
+2. Origen y destino de la ruta
+3. Intervalo de revisión
+4. Configuración opcional de Telegram (con mensaje de prueba)
+
+Al terminar, inicia el bot con:
+```powershell
+.\venv\Scripts\Activate.ps1
+python main.py
+```
+
+> **Nota sobre `irm ... | iex`:** Existe la opción de ejecutar el instalador directamente desde internet, pero es menos segura porque ejecuta código sin revisarlo. Se recomienda clonar el repositorio primero.
+
+---
+
+## Instalación manual
 
 ### 1. Clonar el repositorio
 
@@ -216,9 +240,10 @@ Ver en Google Maps
 
 ```
 route-accident-bot/
-├── main.py                 # Punto de entrada y bucle de monitoreo
-├── config.yaml             # Configuración de ruta y umbrales
-├── .env.example            # Plantilla para API keys
+├── Install-RouteAccidentBot.ps1  # Instalador interactivo (Windows)
+├── main.py                       # Punto de entrada y bucle de monitoreo
+├── config.yaml                   # Configuración de ruta y umbrales
+├── .env.example                  # Plantilla para API keys
 ├── requirements.txt
 ├── README.md
 └── src/
@@ -315,18 +340,27 @@ Python bot that continuously monitors a Google Maps route, detects severe traffi
 
 ---
 
-## Quick Start
+## Quick Start (Windows)
+
+Copy and paste in PowerShell. The [`Install-RouteAccidentBot.ps1`](Install-RouteAccidentBot.ps1) installer handles setup interactively:
+
+```powershell
+git clone https://github.com/StreckerMX/route-accident-bot.git; cd route-accident-bot; Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass; .\Install-RouteAccidentBot.ps1
+```
+
+Then start the bot:
+```powershell
+.\venv\Scripts\Activate.ps1
+python main.py
+```
+
+## Manual Setup (macOS / Linux)
 
 ```bash
 git clone https://github.com/StreckerMX/route-accident-bot.git
 cd route-accident-bot
-python -m venv venv
-
-# Windows
-venv\Scripts\activate
-# macOS / Linux
+python3 -m venv venv
 source venv/bin/activate
-
 pip install -r requirements.txt
 cp .env.example .env   # add GOOGLE_MAPS_API_KEY
 # Edit config.yaml with your origin and destination
