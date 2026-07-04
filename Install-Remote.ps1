@@ -34,16 +34,17 @@ function Get-PythonCmd {
 function Backup-UserData([string]$TargetDir) {
     $backup = @{}
     $envFile = Join-Path $TargetDir ".env"
-    $settingsFile = Join-Path $TargetDir $SettingsFile
+    $settingsPath = Join-Path $TargetDir $SettingsFile
     if (Test-Path $envFile) { $backup[".env"] = Get-Content $envFile -Raw -Encoding UTF8 }
-    if (Test-Path $settingsFile) { $backup[$SettingsFile] = Get-Content $settingsFile -Raw -Encoding UTF8 }
+    if (Test-Path $settingsPath) { $backup[$SettingsFile] = Get-Content $settingsPath -Raw -Encoding UTF8 }
     return $backup
 }
 
 function Restore-UserData([string]$TargetDir, [hashtable]$Backup) {
     foreach ($key in $Backup.Keys) {
-        $path = Join-Path $TargetDir $key
-        Set-Content -Path $path -Value $Backup[$key] -Encoding UTF8 -NoNewline
+        $path = Join-Path $TargetDir (Split-Path $key -Leaf)
+        $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+        [System.IO.File]::WriteAllText($path, $Backup[$key], $utf8NoBom)
     }
 }
 
