@@ -4,8 +4,8 @@ route:
   travel_mode: "DRIVE"
 
 monitor:
-  interval_minutes: 5
-  jam_delay_threshold_minutes: 8
+  interval_minutes: 45
+  jam_delay_threshold_minutes: 13
   cooldown_minutes: 15
 
 investigation:

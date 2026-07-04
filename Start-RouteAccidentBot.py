@@ -34,10 +34,17 @@ def main() -> int:
     base_dir = Path(__file__).parent
     load_dotenv(base_dir / ".env")
 
-    api_key = os.getenv("GOOGLE_MAPS_API_KEY", "").strip()
-    if not api_key:
-        print("Error: define GOOGLE_MAPS_API_KEY en el archivo .env")
-        print(f"Copia {base_dir / ENV_EXAMPLE_FILE} a {base_dir / '.env'} y agrega tu clave.")
+    routes_api_key = os.getenv("GOOGLE_ROUTES_API_KEY", "").strip()
+    geocoding_api_key = os.getenv("GOOGLE_GEOCODING_API_KEY", "").strip()
+
+    if not routes_api_key:
+        print("Error: define GOOGLE_ROUTES_API_KEY en el archivo .env")
+        print(f"Copia {base_dir / ENV_EXAMPLE_FILE} a {base_dir / '.env'} y agrega tus claves.")
+        return 1
+
+    if not geocoding_api_key:
+        print("Error: define GOOGLE_GEOCODING_API_KEY en el archivo .env")
+        print(f"Copia {base_dir / ENV_EXAMPLE_FILE} a {base_dir / '.env'} y agrega tus claves.")
         return 1
 
     config_path = base_dir / SETTINGS_FILE
@@ -58,15 +65,15 @@ def main() -> int:
         print(f"Error: configura origin y destination en {SETTINGS_FILE}")
         return 1
 
-    interval = monitor_cfg.get("interval_minutes", 5)
-    delay_threshold = monitor_cfg.get("jam_delay_threshold_minutes", 8)
-    cooldown = monitor_cfg.get("cooldown_minutes", 15)
+    interval = int(monitor_cfg.get("interval_minutes", 45))
+    delay_threshold = int(monitor_cfg.get("jam_delay_threshold_minutes", 13))
+    cooldown = int(monitor_cfg.get("cooldown_minutes", 15))
     switch_threshold = advisor_cfg.get("recommend_switch_if_saves_minutes", 10)
     compute_alternatives = advisor_cfg.get("compute_alternatives", True)
     language = investigation_cfg.get("language", "es")
 
-    routes_client = RoutesClient(api_key, language_code=f"{language}-MX")
-    geocoder = Geocoder(api_key, language=language)
+    routes_client = RoutesClient(routes_api_key, language_code=f"{language}-MX")
+    geocoder = Geocoder(geocoding_api_key, language=language)
     investigator = Investigator(
         search_queries=investigation_cfg.get("search_queries", []),
         max_results=investigation_cfg.get("max_news_results", 5),
