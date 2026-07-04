@@ -11,7 +11,18 @@ from .config_state import SETTINGS_FILE, is_config_complete, load_config, save_c
 from .google_maps_link_parser import GoogleMapsLinkError, parse_google_maps_link, parse_location_label
 from .monitor_service import RouteMonitor
 from .setup_wizard import run_setup_wizard
-from .ui_helpers import open_url
+from .ui_helpers import (
+    APP_COLORS,
+    StatusBadge,
+    add_link_field_with_paste,
+    build_page_header,
+    build_road_selector,
+    build_route_card,
+    format_log_line,
+    open_url,
+    sync_road_selector,
+    update_route_card,
+)
 
 
 class RouteAccidentBotApp(ctk.CTk):
@@ -23,88 +34,159 @@ class RouteAccidentBotApp(ctk.CTk):
         self.monitor: RouteMonitor | None = None
         self.origin_coords: tuple[float, float] | None = None
         self.destination_coords: tuple[float, float] | None = None
+        self._is_running = False
 
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
 
         self.title("Route Accident Bot")
-        self.geometry("760x620")
-        self.minsize(640, 520)
+        self.geometry("800x700")
+        self.minsize(680, 580)
 
         self._build_ui()
         self._load_fields_from_config()
+        self._append_log("Listo. Pega tu enlace de Google Maps y pulsa Analizar ruta.")
 
     def _build_ui(self) -> None:
-        ctk.CTkLabel(self, text="Route Accident Bot", font=ctk.CTkFont(size=22, weight="bold")).pack(pady=(16, 8))
-        ctk.CTkLabel(self, text="Analisis de trafico en ruta", text_color="gray70").pack(pady=(0, 12))
+        build_page_header(
+            self,
+            title="Route Accident Bot",
+            subtitle="Analisis de trafico en tiempo real con Google Routes",
+            badge="Google",
+        )
 
-        form = ctk.CTkFrame(self)
-        form.pack(fill="x", padx=16, pady=8)
+        form = ctk.CTkFrame(self, border_width=1, border_color=APP_COLORS["card_border"])
+        form.pack(fill="x", padx=20, pady=(0, 10))
 
-        ctk.CTkLabel(form, text="Enlace de Google Maps").pack(anchor="w", padx=12, pady=(12, 4))
-        link_row = ctk.CTkFrame(form, fg_color="transparent")
-        link_row.pack(fill="x", padx=12, pady=(0, 8))
-        link_row.grid_columnconfigure(0, weight=1)
-        self.link_entry = ctk.CTkEntry(link_row, placeholder_text="Pega aqui el enlace de la ruta")
-        self.link_entry.grid(row=0, column=0, sticky="ew", padx=(0, 8))
-        ctk.CTkButton(link_row, text="Pegar", width=80, command=self._paste_link).grid(row=0, column=1)
+        self.link_entry, self.link_hint = add_link_field_with_paste(form, on_change=self._on_link_changed)
+        self.origin_label, self.destination_label = build_route_card(form)
 
-        route_info = ctk.CTkFrame(form, fg_color="transparent")
-        route_info.pack(fill="x", padx=12, pady=(0, 8))
-        self.route_summary = ctk.CTkLabel(route_info, text="Ruta: sin configurar", anchor="w", justify="left")
-        self.route_summary.pack(fill="x")
-
-        ctk.CTkLabel(form, text="Tipo de carretera").pack(anchor="w", padx=12, pady=(4, 0))
+        ctk.CTkLabel(form, text="Tipo de carretera", anchor="w").pack(anchor="w", padx=14, pady=(4, 0))
         self.road_var = tk.StringVar(value="free")
-        road_row = ctk.CTkFrame(form, fg_color="transparent")
-        road_row.pack(fill="x", padx=12, pady=(4, 12))
-        ctk.CTkRadioButton(road_row, text="Libre (sin cuota)", variable=self.road_var, value="free").pack(side="left", padx=(0, 16))
-        ctk.CTkRadioButton(road_row, text="Cuota", variable=self.road_var, value="toll").pack(side="left")
+        self.road_selector = build_road_selector(form, self.road_var)
 
         self.periodic_var = tk.BooleanVar(value=False)
-        ctk.CTkCheckBox(form, text="Revisar automaticamente cada 45 min", variable=self.periodic_var).pack(anchor="w", padx=12, pady=(0, 12))
+        self.periodic_checkbox = ctk.CTkCheckBox(
+            form,
+            text="Revisar automaticamente cada 45 min",
+            variable=self.periodic_var,
+        )
+        self.periodic_checkbox.pack(anchor="w", padx=14, pady=(0, 14))
 
         controls = ctk.CTkFrame(self, fg_color="transparent")
-        controls.pack(fill="x", padx=16, pady=8)
+        controls.pack(fill="x", padx=20, pady=(0, 8))
         controls.grid_columnconfigure((0, 1), weight=1)
-        ctk.CTkButton(controls, text="Analizar ruta", command=self._analyze_route).grid(row=0, column=0, sticky="ew", padx=(0, 8))
-        ctk.CTkButton(controls, text="Detener", fg_color="#8b2e2e", hover_color="#6f2424", command=self._stop_analysis).grid(row=0, column=1, sticky="ew")
-        ctk.CTkButton(self, text="Reconfigurar APIs y ruta", fg_color="transparent", border_width=1, command=self._reconfigure).pack(fill="x", padx=16, pady=(0, 8))
 
-        self.status_label = ctk.CTkLabel(self, text="Estado: Detenido", anchor="w")
-        self.status_label.pack(fill="x", padx=16, pady=(4, 8))
+        self.analyze_btn = ctk.CTkButton(
+            controls,
+            text="Analizar ruta",
+            height=40,
+            font=ctk.CTkFont(size=14, weight="bold"),
+            fg_color=APP_COLORS["accent"],
+            hover_color=APP_COLORS["accent_hover"],
+            command=self._analyze_route,
+        )
+        self.analyze_btn.grid(row=0, column=0, sticky="ew", padx=(0, 8))
+
+        self.stop_btn = ctk.CTkButton(
+            controls,
+            text="Detener",
+            height=40,
+            fg_color=APP_COLORS["danger"],
+            hover_color=APP_COLORS["danger_hover"],
+            command=self._stop_analysis,
+        )
+        self.stop_btn.grid(row=0, column=1, sticky="ew")
+
+        ctk.CTkButton(
+            self,
+            text="Reconfigurar APIs y ruta",
+            fg_color="transparent",
+            border_width=1,
+            command=self._reconfigure,
+        ).pack(fill="x", padx=20, pady=(0, 8))
+
+        status_row = ctk.CTkFrame(self, fg_color="transparent")
+        status_row.pack(fill="x", padx=20, pady=(0, 8))
+        self.status_badge = StatusBadge(status_row)
+        self.status_badge.pack(fill="x")
 
         self.links_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.links_frame.pack(fill="x", padx=16, pady=(0, 8))
+        self.links_frame.pack(fill="x", padx=20, pady=(0, 8))
         self._maps_link_button: ctk.CTkButton | None = None
 
-        ctk.CTkLabel(self, text="Resultados", anchor="w").pack(fill="x", padx=16)
-        self.log_box = ctk.CTkTextbox(self, wrap="word")
-        self.log_box.pack(fill="both", expand=True, padx=16, pady=(4, 16))
+        log_header = ctk.CTkFrame(self, fg_color="transparent")
+        log_header.pack(fill="x", padx=20, pady=(4, 0))
+        log_header.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(log_header, text="Resultados", anchor="w", font=ctk.CTkFont(size=13, weight="bold")).grid(
+            row=0, column=0, sticky="w"
+        )
+        ctk.CTkButton(log_header, text="Limpiar", width=80, height=28, command=self._clear_log).grid(row=0, column=1)
+
+        self.log_box = ctk.CTkTextbox(self, wrap="word", font=ctk.CTkFont(family="Consolas", size=12))
+        self.log_box.pack(fill="both", expand=True, padx=20, pady=(4, 18))
 
     def _load_fields_from_config(self) -> None:
         route_cfg = self.config.get("route", {})
         monitor_cfg = self.config.get("monitor", {})
         self.link_entry.insert(0, route_cfg.get("maps_link", ""))
         self.road_var.set(route_cfg.get("road_preference", "free"))
+        sync_road_selector(self.road_selector, self.road_var.get())
         self.periodic_var.set(bool(monitor_cfg.get("periodic_enabled", False)))
-        self._update_route_summary(route_cfg.get("origin", ""), route_cfg.get("destination", ""))
+        update_route_card(
+            self.origin_label,
+            self.destination_label,
+            route_cfg.get("origin", ""),
+            route_cfg.get("destination", ""),
+        )
+        if route_cfg.get("maps_link"):
+            self._on_link_changed(route_cfg.get("maps_link", ""))
 
-    def _update_route_summary(self, origin: str, destination: str) -> None:
-        if origin and destination:
-            self.route_summary.configure(text=f"Ruta: {origin} -> {destination}")
-        else:
-            self.route_summary.configure(text="Ruta: pega un enlace de Google Maps")
+    def _set_running_state(self, running: bool) -> None:
+        self._is_running = running
+        state = "disabled" if running else "normal"
+        self.analyze_btn.configure(state=state)
+        self.link_entry.configure(state=state)
+        self.road_selector.configure(state=state)
+        self.periodic_checkbox.configure(state=state)
+
+    def _on_link_changed(self, raw: str, error: str | None = None) -> None:
+        if error:
+            self.link_hint.configure(text=error, text_color=APP_COLORS["warning"])
+            update_route_card(self.origin_label, self.destination_label, "", "")
+            return
+        if not raw:
+            self.link_hint.configure(text="Comparte la ruta desde Google Maps y pega el enlace aqui.", text_color=APP_COLORS["muted"])
+            update_route_card(self.origin_label, self.destination_label, "", "")
+            return
+        try:
+            parsed = parse_google_maps_link(raw)
+        except GoogleMapsLinkError as exc:
+            self.link_hint.configure(text=str(exc), text_color=APP_COLORS["warning"])
+            update_route_card(self.origin_label, self.destination_label, "", "")
+            return
+        self.origin_coords = parsed.origin_coords
+        self.destination_coords = parsed.destination_coords
+        update_route_card(self.origin_label, self.destination_label, parsed.origin, parsed.destination)
+        self.link_hint.configure(text="Enlace valido.", text_color=APP_COLORS["success"])
 
     def _append_log(self, message: str) -> None:
-        self.log_box.insert("end", message + "\n")
+        self.log_box.insert("end", format_log_line(message) + "\n")
         self.log_box.see("end")
+
+    def _clear_log(self) -> None:
+        self.log_box.delete("1.0", "end")
 
     def _thread_safe_log(self, message: str) -> None:
         self.after(0, lambda: self._append_log(message))
 
     def _thread_safe_status(self, status: str) -> None:
-        self.after(0, lambda: self.status_label.configure(text=f"Estado: {status}"))
+        def _update() -> None:
+            self.status_badge.set_status(status)
+            if status == "Detenido":
+                self._set_running_state(False)
+
+        self.after(0, _update)
 
     def _thread_safe_maps_link(self, url: str, label: str) -> None:
         self.after(0, lambda: self._show_maps_button(url, label))
@@ -116,18 +198,11 @@ class RouteAccidentBotApp(ctk.CTk):
         self._maps_link_button = ctk.CTkButton(
             self.links_frame,
             text=label,
+            fg_color=APP_COLORS["success_bg"],
+            hover_color=APP_COLORS["success"],
             command=lambda u=url: open_url(u),
         )
         self._maps_link_button.pack(fill="x")
-
-    def _paste_link(self) -> None:
-        try:
-            text = self.clipboard_get().strip()
-        except tk.TclError:
-            self._append_log("No hay texto en el portapapeles.")
-            return
-        self.link_entry.delete(0, "end")
-        self.link_entry.insert(0, text)
 
     def _parse_and_validate_link(self) -> tuple[str, str, str]:
         raw = self.link_entry.get().strip()
@@ -139,7 +214,8 @@ class RouteAccidentBotApp(ctk.CTk):
             raise ValueError(str(exc)) from exc
         self.origin_coords = parsed.origin_coords
         self.destination_coords = parsed.destination_coords
-        self._update_route_summary(parsed.origin, parsed.destination)
+        update_route_card(self.origin_label, self.destination_label, parsed.origin, parsed.destination)
+        self.link_hint.configure(text="Enlace valido.", text_color=APP_COLORS["success"])
         return raw, parsed.origin, parsed.destination
 
     def _save_config_from_form(self, maps_link: str, origin: str, destination: str) -> None:
@@ -174,6 +250,7 @@ class RouteAccidentBotApp(ctk.CTk):
                 origin_coords=self.origin_coords,
                 destination_coords=self.destination_coords,
             )
+            self._set_running_state(True)
             self.monitor.print_banner()
             self.monitor.start_analysis(periodic=periodic)
             self._append_log("Analisis iniciado.")
@@ -184,6 +261,8 @@ class RouteAccidentBotApp(ctk.CTk):
         if self.monitor:
             self.monitor.stop()
             self.monitor = None
+        self._set_running_state(False)
+        self.status_badge.set_status("Detenido")
         self._append_log("Analisis detenido.")
 
     def _reconfigure(self) -> None:

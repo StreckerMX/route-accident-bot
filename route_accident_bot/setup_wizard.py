@@ -9,7 +9,14 @@ import customtkinter as ctk
 
 from .config_state import SETTINGS_FILE, load_config, save_config, write_env_file
 from .google_maps_link_parser import GoogleMapsLinkError, parse_google_maps_link
-from .ui_helpers import add_labeled_entry_with_paste
+from .ui_helpers import (
+    APP_COLORS,
+    add_labeled_entry_with_paste,
+    add_link_field_with_paste,
+    build_page_header,
+    build_road_selector,
+    build_section_title,
+)
 
 
 class SetupWizard(ctk.CTk):
@@ -27,68 +34,81 @@ class SetupWizard(ctk.CTk):
         ctk.set_default_color_theme("blue")
 
         self.title("Configuracion - Route Accident Bot")
-        self.geometry("640x720")
-        self.minsize(560, 640)
+        self.geometry("680x760")
+        self.minsize(600, 680)
 
         self._build_ui()
         self.protocol("WM_DELETE_WINDOW", self._cancel)
 
     def _build_ui(self) -> None:
-        ctk.CTkLabel(self, text="Configuracion inicial", font=ctk.CTkFont(size=22, weight="bold")).pack(pady=(16, 4))
-        ctk.CTkLabel(self, text="Completa los datos para analizar tu ruta", text_color="gray70").pack(pady=(0, 12))
-
-        form = ctk.CTkScrollableFrame(self)
-        form.pack(fill="both", expand=True, padx=16, pady=8)
-
-        self.routes_key_entry = add_labeled_entry_with_paste(form, "API Key - Routes API", show="*")
-        self.geocoding_key_entry = add_labeled_entry_with_paste(
-            form, "API Key - Geocoding API (opcional, misma clave)", show="*"
+        build_page_header(
+            self,
+            title="Configuracion inicial",
+            subtitle="Conecta Google Routes y define tu ruta habitual",
+            badge="Google",
         )
 
-        ctk.CTkLabel(form, text="Enlace de Google Maps").pack(anchor="w", padx=8, pady=(12, 0))
-        link_row = ctk.CTkFrame(form, fg_color="transparent")
-        link_row.pack(fill="x", padx=8, pady=4)
-        link_row.grid_columnconfigure(0, weight=1)
-        self.link_entry = ctk.CTkEntry(link_row, placeholder_text="Pega el enlace de tu ruta")
-        self.link_entry.grid(row=0, column=0, sticky="ew", padx=(0, 8))
-        ctk.CTkButton(link_row, text="Pegar", width=80, command=self._paste_link).grid(row=0, column=1)
+        form = ctk.CTkScrollableFrame(self, border_width=1, border_color=APP_COLORS["card_border"])
+        form.pack(fill="both", expand=True, padx=20, pady=8)
 
-        ctk.CTkLabel(form, text="Tipo de carretera").pack(anchor="w", padx=8, pady=(12, 0))
+        build_section_title(form, "1. Claves de API")
+        self.routes_key_entry = add_labeled_entry_with_paste(
+            form,
+            "Google Routes API",
+            show="*",
+            hint="Crea una clave en console.cloud.google.com",
+        )
+        self.geocoding_key_entry = add_labeled_entry_with_paste(
+            form,
+            "Google Geocoding API (opcional)",
+            show="*",
+            hint="Puedes usar la misma clave que Routes",
+        )
+
+        build_section_title(form, "2. Tu ruta")
+        self.link_entry, self.link_hint = add_link_field_with_paste(form)
+
+        ctk.CTkLabel(form, text="Tipo de carretera", anchor="w").pack(anchor="w", padx=14, pady=(8, 0))
         self.road_var = tk.StringVar(value="free")
-        road_row = ctk.CTkFrame(form, fg_color="transparent")
-        road_row.pack(fill="x", padx=8, pady=4)
-        ctk.CTkRadioButton(road_row, text="Libre (sin cuota)", variable=self.road_var, value="free").pack(side="left", padx=(0, 16))
-        ctk.CTkRadioButton(road_row, text="Cuota", variable=self.road_var, value="toll").pack(side="left")
+        self.road_selector = build_road_selector(form, self.road_var)
 
         self.periodic_var = tk.BooleanVar(value=False)
-        ctk.CTkCheckBox(form, text="Revisar automaticamente cada 45 min", variable=self.periodic_var).pack(anchor="w", padx=8, pady=12)
+        ctk.CTkCheckBox(form, text="Revisar automaticamente cada 45 min", variable=self.periodic_var).pack(
+            anchor="w", padx=14, pady=(0, 8)
+        )
 
+        build_section_title(form, "3. Notificaciones (opcional)")
         self.telegram_var = tk.BooleanVar(value=False)
-        ctk.CTkCheckBox(form, text="Activar Telegram (opcional)", variable=self.telegram_var, command=self._toggle_telegram).pack(anchor="w", padx=8, pady=4)
+        ctk.CTkCheckBox(
+            form,
+            text="Activar alertas por Telegram",
+            variable=self.telegram_var,
+            command=self._toggle_telegram,
+        ).pack(anchor="w", padx=14, pady=(0, 4))
+
         self.telegram_frame = ctk.CTkFrame(form, fg_color="transparent")
-        self.telegram_frame.pack(fill="x", padx=8, pady=4)
-        self.telegram_token_entry = add_labeled_entry_with_paste(self.telegram_frame, "Token de Telegram", show="*")
-        self.telegram_chat_entry = add_labeled_entry_with_paste(self.telegram_frame, "Chat ID de Telegram")
+        self.telegram_frame.pack(fill="x", padx=14, pady=(0, 12))
+        self.telegram_token_entry = add_labeled_entry_with_paste(self.telegram_frame, "Token del bot", show="*")
+        self.telegram_chat_entry = add_labeled_entry_with_paste(self.telegram_frame, "Chat ID")
         self._toggle_telegram()
 
-        self.status_label = ctk.CTkLabel(self, text="", text_color="orange")
-        self.status_label.pack(fill="x", padx=16, pady=4)
+        self.status_label = ctk.CTkLabel(self, text="", text_color=APP_COLORS["warning"], anchor="w")
+        self.status_label.pack(fill="x", padx=20, pady=4)
 
-        ctk.CTkButton(self, text="Guardar y continuar", command=self._save).pack(fill="x", padx=16, pady=12)
+        ctk.CTkButton(
+            self,
+            text="Guardar y continuar",
+            height=42,
+            font=ctk.CTkFont(size=14, weight="bold"),
+            fg_color=APP_COLORS["success_bg"],
+            hover_color=APP_COLORS["success"],
+            command=self._save,
+        ).pack(fill="x", padx=20, pady=(4, 18))
 
     def _toggle_telegram(self) -> None:
         state = "normal" if self.telegram_var.get() else "disabled"
         self.telegram_token_entry.configure(state=state)
         self.telegram_chat_entry.configure(state=state)
-
-    def _paste_link(self) -> None:
-        try:
-            text = self.clipboard_get().strip()
-        except tk.TclError:
-            self.status_label.configure(text="No hay texto en el portapapeles.")
-            return
-        self.link_entry.delete(0, "end")
-        self.link_entry.insert(0, text)
 
     def _save(self) -> None:
         routes_key = self.routes_key_entry.get().strip()
