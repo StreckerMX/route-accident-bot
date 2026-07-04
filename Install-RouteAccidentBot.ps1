@@ -54,6 +54,12 @@ function Set-YamlValue {
     Set-Content $FilePath $content -Encoding UTF8 -NoNewline
 }
 
+function Write-TextFileUtf8NoBom {
+    param([string]$Path, [string]$Content)
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText($Path, $Content, $utf8NoBom)
+}
+
 function Test-Telegram {
     param([string]$Token, [string]$ChatId)
     $url = "https://api.telegram.org/bot$Token/sendMessage"
@@ -140,13 +146,14 @@ $destination = Read-InputDefault "  Destino" "Toluca, Estado de Mexico"
 
 Write-Step "5/5  Guardando configuracion..."
 if ($reconfigure) {
-    @(
+    $envLines = @(
         "GOOGLE_ROUTES_API_KEY=$routesKey"
         "GOOGLE_GEOCODING_API_KEY=$geocodingKey"
         ""
         "TELEGRAM_BOT_TOKEN=$telegramToken"
         "TELEGRAM_CHAT_ID=$telegramChatId"
-    ) -join "`n" | Set-Content $EnvFile -Encoding UTF8
+    )
+    Write-TextFileUtf8NoBom -Path $EnvFile -Content ($envLines -join "`n")
     Write-Ok "Archivo .env"
 }
 

@@ -32,7 +32,7 @@ def load_config(config_path: Path) -> dict:
 
 def main() -> int:
     base_dir = Path(__file__).parent
-    load_dotenv(base_dir / ".env")
+    load_dotenv(base_dir / ".env", encoding="utf-8-sig")
 
     routes_api_key = os.getenv("GOOGLE_ROUTES_API_KEY", "").strip()
     geocoding_api_key = os.getenv("GOOGLE_GEOCODING_API_KEY", "").strip()
