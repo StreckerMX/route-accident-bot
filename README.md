@@ -7,6 +7,8 @@
 
 Monitorea una ruta de Google Maps, detecta congestión severa, busca noticias del incidente y recomienda si conviene cambiar de ruta. Soporta alertas por Telegram.
 
+> **¿Sin tarjeta de crédito?** Usa la versión gratuita: [route-accident-bot-free](https://github.com/StreckerMX/route-accident-bot-free)
+
 [English version](#english)
 
 ---
