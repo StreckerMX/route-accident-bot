@@ -1,0 +1,21 @@
+route:
+  origin: "Ciudad de México, CDMX"
+  destination: "Toluca, Estado de México"
+  travel_mode: "DRIVE"
+
+monitor:
+  interval_minutes: 5
+  jam_delay_threshold_minutes: 8
+  cooldown_minutes: 15
+
+investigation:
+  language: "es"
+  max_news_results: 5
+  search_queries:
+    - "accidente {road} {city}"
+    - "choque {road} {city} hoy"
+    - "tráfico {road} {city}"
+
+advisor:
+  compute_alternatives: true
+  recommend_switch_if_saves_minutes: 10
