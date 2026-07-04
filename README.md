@@ -43,6 +43,16 @@ El instalador solicitará:
 
 ## Uso
 
+**Interfaz gráfica (recomendado):**
+
+```powershell
+.\Start-RouteAccidentBotGui.ps1
+```
+
+Pega un enlace de Google Maps, pulsa **Analizar enlace** y luego **Iniciar monitoreo**.
+
+**Consola:**
+
 ```powershell
 .\Start-RouteAccidentBot.ps1
 ```

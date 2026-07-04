@@ -3,3 +3,4 @@ pyyaml>=6.0.1
 python-dotenv>=1.0.0
 polyline>=2.0.2
 duckduckgo-search>=6.0.0
+customtkinter>=5.2.0

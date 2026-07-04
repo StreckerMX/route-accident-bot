@@ -180,7 +180,8 @@ if ($reconfigure -and $enableTelegram) {
 
 Write-Host "`n  Instalacion completada.`n" -ForegroundColor Green
 Write-Host "  Iniciar el bot:" -ForegroundColor Cyan
-Write-Host "    .\Start-RouteAccidentBot.ps1`n" -ForegroundColor Yellow
+Write-Host "    .\Start-RouteAccidentBotGui.ps1   (interfaz grafica)" -ForegroundColor Yellow
+Write-Host "    .\Start-RouteAccidentBot.ps1      (consola)`n" -ForegroundColor Yellow
 
 if (Read-YesNo "  Iniciar ahora" $false) {
     & $venvPython $EntryPoint

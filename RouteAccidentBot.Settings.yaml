@@ -1,6 +1,6 @@
-route:
-  origin: "Ciudad de México, CDMX"
-  destination: "Toluca, Estado de México"
+﻿route:
+  origin: "Tijuana"
+  destination: "Hermosillo"
   travel_mode: "DRIVE"
 
 monitor:
