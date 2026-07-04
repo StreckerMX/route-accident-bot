@@ -65,6 +65,18 @@ Presiona `Ctrl+C` para detener el monitoreo.
 
 ---
 
+## Desinstalación
+
+Para eliminar el bot por completo (código, `venv`, `.env` y configuración):
+
+```powershell
+.\Uninstall-RouteAccidentBot.ps1
+```
+
+El script pide confirmación y la palabra `BORRAR`. Cierra el bot antes de ejecutarlo.
+
+---
+
 ## Configuración manual
 
 ### Archivo `.env`
