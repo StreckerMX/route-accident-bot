@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from duckduckgo_search import DDGS
 
-from .geocoder import LocationInfo
+from .google_geocoder import LocationInfo
 
 
 @dataclass

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bot de monitoreo de tráfico y accidentes en rutas de Google Maps."""
+"""Punto de entrada del monitor de trafico Route Accident Bot."""
 
 from __future__ import annotations
 
@@ -13,13 +13,16 @@ import requests
 import yaml
 from dotenv import load_dotenv
 
-from src.geocoder import Geocoder
-from src.investigator import Investigator
-from src.reporter import format_alert, format_alert_telegram, format_ok_check
-from src.telegram_notifier import TelegramNotifier
-from src.route_advisor import compare_routes, recommend
-from src.routes_client import RoutesClient
-from src.traffic_analyzer import analyze_route
+from route_accident_bot.alert_reporter import format_alert, format_alert_telegram, format_ok_check
+from route_accident_bot.google_geocoder import Geocoder, LocationInfo
+from route_accident_bot.google_routes_client import RoutesClient
+from route_accident_bot.news_investigator import Investigator
+from route_accident_bot.route_advisor import compare_routes, recommend
+from route_accident_bot.telegram_notifier import TelegramNotifier
+from route_accident_bot.traffic_analyzer import analyze_route
+
+SETTINGS_FILE = "RouteAccidentBot.Settings.yaml"
+ENV_EXAMPLE_FILE = "RouteAccidentBot.env.example"
 
 
 def load_config(config_path: Path) -> dict:
@@ -34,12 +37,12 @@ def main() -> int:
     api_key = os.getenv("GOOGLE_MAPS_API_KEY", "").strip()
     if not api_key:
         print("Error: define GOOGLE_MAPS_API_KEY en el archivo .env")
-        print(f"Copia {base_dir / '.env.example'} a {base_dir / '.env'} y agrega tu clave.")
+        print(f"Copia {base_dir / ENV_EXAMPLE_FILE} a {base_dir / '.env'} y agrega tu clave.")
         return 1
 
-    config_path = base_dir / "config.yaml"
+    config_path = base_dir / SETTINGS_FILE
     if not config_path.exists():
-        print(f"Error: no se encontró {config_path}")
+        print(f"Error: no se encontro {config_path}")
         return 1
 
     config = load_config(config_path)
@@ -52,7 +55,7 @@ def main() -> int:
     origin = route_cfg.get("origin", "").strip()
     destination = route_cfg.get("destination", "").strip()
     if not origin or not destination:
-        print("Error: configura origin y destination en config.yaml")
+        print(f"Error: configura origin y destination en {SETTINGS_FILE}")
         return 1
 
     interval = monitor_cfg.get("interval_minutes", 5)
@@ -80,19 +83,19 @@ def main() -> int:
     if telegram_cfg.get("enabled", False) and not telegram.enabled:
         print("Aviso: telegram.enabled=true pero faltan TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID en .env")
 
-    print("═" * 50)
-    print("  Route Accident Bot — Monitoreo activo")
-    print("═" * 50)
+    print("=" * 50)
+    print("  Route Accident Bot - Monitoreo activo")
+    print("=" * 50)
     print(f"  Origen:      {origin}")
     print(f"  Destino:     {destination}")
     print(f"  Intervalo:   cada {interval} min")
     print(f"  Umbral:      +{delay_threshold} min de retraso")
     print(f"  Telegram:    {'activo' if telegram_enabled else 'desactivado'}")
     print("  Ctrl+C para detener")
-    print("═" * 50)
+    print("=" * 50)
     print()
 
-    last_alert_at: float | None = None
+    last_alert_at = None
 
     try:
         while True:
@@ -144,10 +147,8 @@ def main() -> int:
                             if main_event:
                                 location = geocoder.reverse(main_event.lat, main_event.lng)
                             else:
-                                from src.geocoder import LocationInfo
-
                                 location = LocationInfo(
-                                    formatted_address="Ubicación no determinada",
+                                    formatted_address="Ubicacion no determinada",
                                     road="",
                                     neighborhood="",
                                     city="",
@@ -185,11 +186,11 @@ def main() -> int:
                                         )
                                     )
                                     if sent:
-                                        print("  📱 Alerta enviada a Telegram.")
+                                        print("  Alerta enviada a Telegram.")
                                     else:
-                                        print("  ⚠️ No se pudo enviar la alerta a Telegram.")
+                                        print("  No se pudo enviar la alerta a Telegram.")
                                 except Exception as exc:
-                                    print(f"  ⚠️ Error de Telegram: {exc}")
+                                    print(f"  Error de Telegram: {exc}")
 
                             last_alert_at = time.time()
                     else:
@@ -199,7 +200,7 @@ def main() -> int:
                             try:
                                 telegram.send(ok_text, parse_mode=None)
                             except Exception as exc:
-                                print(f"  ⚠️ Error de Telegram: {exc}")
+                                print(f"  Error de Telegram: {exc}")
 
             except requests.HTTPError as exc:
                 print(f"[{now.strftime('%H:%M:%S')}] Error HTTP: {exc}")

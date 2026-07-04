@@ -56,9 +56,10 @@ El asistente te pedirá:
 
 Al terminar, inicia el bot con:
 ```powershell
-.\venv\Scripts\Activate.ps1
-python main.py
+.\Start-RouteAccidentBot.ps1
 ```
+
+> **Windows Security / PowerShell 7:** Si aparece un aviso sobre `pip.exe` bloqueado, el instalador ya usa `python -m pip` para evitarlo. También puedes abrir **Windows PowerShell** (5.1) en lugar de PowerShell 7, o ejecutar el bot con `Start-RouteAccidentBot.ps1` sin activar el venv manualmente.
 
 > **Nota sobre `irm ... | iex`:** Existe la opción de ejecutar el instalador directamente desde internet, pero es menos segura porque ejecuta código sin revisarlo. Se recomienda clonar el repositorio primero.
 
@@ -88,17 +89,17 @@ source venv/bin/activate
 ### 3. Instalar dependencias
 
 ```bash
-pip install -r requirements.txt
+pip install -r RouteAccidentBot.Requirements.txt
 ```
 
 ### 4. Configurar variables de entorno
 
 ```bash
 # Windows
-copy .env.example .env
+copy RouteAccidentBot.env.example .env
 
 # macOS / Linux
-cp .env.example .env
+cp RouteAccidentBot.env.example .env
 ```
 
 Edita `.env`:
@@ -113,7 +114,7 @@ TELEGRAM_CHAT_ID=tu_chat_id
 
 ### 5. Configurar la ruta a monitorear
 
-Edita `config.yaml`:
+Edita `RouteAccidentBot.Settings.yaml`:
 
 ```yaml
 route:
@@ -148,7 +149,7 @@ telegram:
 ## Uso
 
 ```bash
-python main.py
+python Start-RouteAccidentBot.py
 ```
 
 El bot revisará la ruta cada `interval_minutes` minutos. Presiona `Ctrl+C` para detenerlo.
@@ -186,13 +187,13 @@ El bot revisará la ruta cada `interval_minutes` minutos. Presiona `Ctrl+C` para
 ### Paso 3 — Activar en el bot
 
 1. En `.env`, configura `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID`
-2. En `config.yaml`, cambia:
+2. En `RouteAccidentBot.Settings.yaml`, cambia:
    ```yaml
    telegram:
      enabled: true
      notify_on_alert: true
    ```
-3. Ejecuta `python main.py`
+3. Ejecuta `python Start-RouteAccidentBot.py`
 
 Cuando detecte un atasco, recibirás un mensaje como:
 
@@ -240,20 +241,21 @@ Ver en Google Maps
 
 ```
 route-accident-bot/
-├── Install-RouteAccidentBot.ps1  # Instalador interactivo (Windows)
-├── main.py                       # Punto de entrada y bucle de monitoreo
-├── config.yaml                   # Configuración de ruta y umbrales
-├── .env.example                  # Plantilla para API keys
-├── requirements.txt
+├── Install-RouteAccidentBot.ps1      # Instalador interactivo (Windows)
+├── Start-RouteAccidentBot.ps1        # Inicia el bot (sin activar venv)
+├── Start-RouteAccidentBot.py         # Punto de entrada del monitor
+├── RouteAccidentBot.Settings.yaml    # Configuración de ruta y umbrales
+├── RouteAccidentBot.env.example      # Plantilla para API keys
+├── RouteAccidentBot.Requirements.txt # Dependencias Python
 ├── README.md
-└── src/
-    ├── routes_client.py    # Cliente Google Routes API v2
-    ├── traffic_analyzer.py # Detección de atascos y severidad
-    ├── geocoder.py         # Geocodificación inversa
-    ├── investigator.py     # Búsqueda de noticias
-    ├── route_advisor.py    # Comparación y recomendación de rutas
-    ├── reporter.py         # Formato de reportes
-    └── telegram_notifier.py # Envío de alertas a Telegram
+└── route_accident_bot/
+    ├── google_routes_client.py   # Cliente Google Routes API v2
+    ├── traffic_analyzer.py       # Detección de atascos y severidad
+    ├── google_geocoder.py        # Geocodificación inversa
+    ├── news_investigator.py      # Búsqueda de noticias
+    ├── route_advisor.py          # Comparación y recomendación de rutas
+    ├── alert_reporter.py         # Formato de reportes
+    └── telegram_notifier.py      # Envío de alertas a Telegram
 ```
 
 ---
@@ -262,7 +264,7 @@ route-accident-bot/
 
 ```mermaid
 flowchart TD
-    config[config.yaml] --> monitor[Bucle de monitoreo]
+    config[RouteAccidentBot.Settings.yaml] --> monitor[Bucle de monitoreo]
     monitor --> routesAPI[Routes API]
     routesAPI --> analyzer[Analizador de tráfico]
     analyzer -->|Sin problema| wait[Esperar intervalo]
@@ -296,9 +298,10 @@ flowchart TD
 
 | Error | Solución |
 |-------|----------|
-| `define GOOGLE_MAPS_API_KEY` | Crea `.env` desde `.env.example` |
+| `define GOOGLE_MAPS_API_KEY` | Crea `.env` desde `RouteAccidentBot.env.example` |
 | `403 PERMISSION_DENIED` | Habilita Routes API y Geocoding API |
-| `Sin rutas disponibles` | Verifica origen y destino en `config.yaml` |
+| `Sin rutas disponibles` | Verifica origen y destino en `RouteAccidentBot.Settings.yaml` |
+| Windows Security bloquea `pip.exe` | Usa `Install-RouteAccidentBot.ps1` (usa `python -m pip`) o Windows PowerShell 5.1 |
 | No encuentra noticias | Normal en incidentes no reportados aún |
 | `Requests quota exceeded` | Aumenta `interval_minutes` |
 
@@ -336,7 +339,7 @@ Python bot that continuously monitors a Google Maps route, detects severe traffi
 - Alternative route comparison
 - Clear recommendations: `MANTENER_RUTA`, `CONSIDERAR_ALTERNATIVA`, or `CAMBIAR_RUTA`
 - **Telegram push notifications** on traffic alerts
-- Fully configurable via `config.yaml`
+- Fully configurable via `RouteAccidentBot.Settings.yaml`
 
 ---
 
@@ -350,9 +353,10 @@ git clone https://github.com/StreckerMX/route-accident-bot.git; cd route-acciden
 
 Then start the bot:
 ```powershell
-.\venv\Scripts\Activate.ps1
-python main.py
+.\Start-RouteAccidentBot.ps1
 ```
+
+> **Windows Security:** The installer uses `python -m pip` instead of calling `pip.exe` directly, which avoids Smart App Control blocks in PowerShell 7.
 
 ## Manual Setup (macOS / Linux)
 
@@ -361,10 +365,10 @@ git clone https://github.com/StreckerMX/route-accident-bot.git
 cd route-accident-bot
 python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env   # add GOOGLE_MAPS_API_KEY
-# Edit config.yaml with your origin and destination
-python main.py
+pip install -r RouteAccidentBot.Requirements.txt
+cp RouteAccidentBot.env.example .env   # add GOOGLE_MAPS_API_KEY
+# Edit RouteAccidentBot.Settings.yaml with your origin and destination
+python Start-RouteAccidentBot.py
 ```
 
 ---
@@ -400,13 +404,13 @@ python main.py
 ### Step 3 — Enable notifications
 
 1. Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `.env`
-2. In `config.yaml`:
+2. In `RouteAccidentBot.Settings.yaml`:
    ```yaml
    telegram:
      enabled: true
      notify_on_alert: true
    ```
-3. Run `python main.py`
+3. Run `python Start-RouteAccidentBot.py`
 
 You'll receive a formatted alert on your phone whenever severe traffic is detected, including location, news findings, route comparison, and a Google Maps link.
 

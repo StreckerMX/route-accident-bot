@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from .geocoder import LocationInfo
-from .investigator import NewsItem
+from .google_geocoder import LocationInfo
+from .news_investigator import NewsItem
 from .route_advisor import Recommendation, RouteComparison
 from .traffic_analyzer import RouteAnalysis, TrafficEvent
 
