@@ -10,6 +10,22 @@ import requests
 
 COORD_PATTERN = re.compile(r"^(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)$")
 AT_COORD_PATTERN = re.compile(r"@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)")
+DATA_COORD_PATTERNS = (
+    re.compile(r"!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)"),
+    re.compile(r"!1d(-?\d+(?:\.\d+)?)!2d(-?\d+(?:\.\d+)?)"),
+    re.compile(r"!2d(-?\d+(?:\.\d+)?)!3d(-?\d+(?:\.\d+)?)"),
+)
+VAGUE_LOCATION_LABELS = {
+    "my location",
+    "current location",
+    "tu ubicacion",
+    "tu ubicación",
+    "ubicacion actual",
+    "ubicación actual",
+    "mi ubicacion",
+    "mi ubicación",
+    "your location",
+}
 
 
 class GoogleMapsLinkError(Exception):
@@ -61,12 +77,39 @@ def _resolve_short_url(url: str) -> str:
         raise GoogleMapsLinkError(f"No se pudo resolver el enlace corto: {exc}") from exc
 
 
+def _is_vague_location(label: str) -> bool:
+    return label.strip().lower() in VAGUE_LOCATION_LABELS
+
+
+def _extract_coords_from_data(url: str) -> list[tuple[float, float]]:
+    decoded = unquote(url)
+    found: list[tuple[float, float]] = []
+
+    for pattern in DATA_COORD_PATTERNS:
+        for match in pattern.finditer(decoded):
+            if pattern is DATA_COORD_PATTERNS[0]:
+                lat, lng = float(match.group(1)), float(match.group(2))
+            elif pattern is DATA_COORD_PATTERNS[1]:
+                lng, lat = float(match.group(1)), float(match.group(2))
+            else:
+                lat, lng = float(match.group(1)), float(match.group(2))
+            if -90 <= lat <= 90 and -180 <= lng <= 180:
+                found.append((lat, lng))
+
+    unique: list[tuple[float, float]] = []
+    for coord in found:
+        if coord not in unique:
+            unique.append(coord)
+    return unique
+
+
 def _extract_dir_segments(path: str) -> list[str]:
     if "/dir/" not in path:
         return []
 
     dir_part = path.split("/dir/", 1)[1]
     dir_part = dir_part.split("/@", 1)[0]
+    dir_part = dir_part.split("/data=", 1)[0]
 
     segments: list[str] = []
     for segment in dir_part.split("/"):
@@ -116,9 +159,30 @@ def parse_google_maps_link(raw_url: str) -> ParsedRoute:
 
     origin_label, origin_coords = _label_from_value(origin_val)
     dest_label, dest_coords = _label_from_value(dest_val)
+    data_coords = _extract_coords_from_data(url)
+
+    if data_coords:
+        if not origin_coords or _is_vague_location(origin_label):
+            origin_coords = data_coords[0]
+            origin_label = _format_coords(*origin_coords)
+        if not dest_coords or _is_vague_location(dest_label):
+            dest_coords = data_coords[-1]
+            dest_label = _format_coords(*dest_coords)
+        if len(data_coords) >= 2 and not origin_coords:
+            origin_coords = data_coords[0]
+            origin_label = _format_coords(*origin_coords)
+        if len(data_coords) >= 2 and not dest_coords:
+            dest_coords = data_coords[-1]
+            dest_label = _format_coords(*dest_coords)
 
     if not origin_label or not dest_label:
         raise GoogleMapsLinkError("Origen o destino invalido en el enlace.")
+
+    if origin_coords and dest_coords and origin_coords == dest_coords and len(data_coords) >= 2:
+        origin_coords = data_coords[0]
+        dest_coords = data_coords[-1]
+        origin_label = _format_coords(*origin_coords)
+        dest_label = _format_coords(*dest_coords)
 
     return ParsedRoute(
         origin=origin_label,

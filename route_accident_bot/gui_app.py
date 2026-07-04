@@ -10,6 +10,7 @@ import customtkinter as ctk
 from .alert_popup import show_traffic_alert_popup
 from .alert_reporter import AlertResult
 from .config_state import SETTINGS_FILE, is_config_complete, load_config, save_config
+from .route_geometry import haversine_km
 from .google_maps_link_parser import GoogleMapsLinkError, parse_google_maps_link, parse_location_label
 from .monitor_service import RouteMonitor
 from .setup_wizard import run_setup_wizard
@@ -170,7 +171,16 @@ class RouteAccidentBotApp(ctk.CTk):
         self.origin_coords = parsed.origin_coords
         self.destination_coords = parsed.destination_coords
         update_route_card(self.origin_label, self.destination_label, parsed.origin, parsed.destination)
-        self.link_hint.configure(text="Enlace valido.", text_color=APP_COLORS["success"])
+        hint = "Enlace valido."
+        if parsed.origin_coords and parsed.destination_coords:
+            straight_km = haversine_km(
+                parsed.origin_coords[0],
+                parsed.origin_coords[1],
+                parsed.destination_coords[0],
+                parsed.destination_coords[1],
+            )
+            hint += f" Distancia aprox. {straight_km:.0f} km (linea recta)."
+        self.link_hint.configure(text=hint, text_color=APP_COLORS["success"])
 
     def _append_log(self, message: str) -> None:
         self.log_box.insert("end", format_log_line(message) + "\n")
@@ -220,7 +230,16 @@ class RouteAccidentBotApp(ctk.CTk):
         self.origin_coords = parsed.origin_coords
         self.destination_coords = parsed.destination_coords
         update_route_card(self.origin_label, self.destination_label, parsed.origin, parsed.destination)
-        self.link_hint.configure(text="Enlace valido.", text_color=APP_COLORS["success"])
+        hint = "Enlace valido."
+        if parsed.origin_coords and parsed.destination_coords:
+            straight_km = haversine_km(
+                parsed.origin_coords[0],
+                parsed.origin_coords[1],
+                parsed.destination_coords[0],
+                parsed.destination_coords[1],
+            )
+            hint += f" Distancia aprox. {straight_km:.0f} km (linea recta)."
+        self.link_hint.configure(text=hint, text_color=APP_COLORS["success"])
         return raw, parsed.origin, parsed.destination
 
     def _save_config_from_form(self, maps_link: str, origin: str, destination: str) -> None:
@@ -241,8 +260,10 @@ class RouteAccidentBotApp(ctk.CTk):
             return
         try:
             maps_link, origin, destination = self._parse_and_validate_link()
-            _, self.origin_coords = parse_location_label(origin)
-            _, self.destination_coords = parse_location_label(destination)
+            if not self.origin_coords:
+                _, self.origin_coords = parse_location_label(origin)
+            if not self.destination_coords:
+                _, self.destination_coords = parse_location_label(destination)
             self._save_config_from_form(maps_link, origin, destination)
             periodic = bool(self.periodic_var.get())
 
